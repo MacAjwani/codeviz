@@ -204,7 +204,11 @@ export interface ClineSayTool {
 		| "webSearch"
 		| "summarizeTask"
 		| "useSkill"
+		| "traceCodeFlow"
 	path?: string
+	entryPoint?: string
+	description?: string
+	maxDepth?: string
 	diff?: string
 	content?: string
 	regex?: string

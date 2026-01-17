@@ -24,6 +24,22 @@ export interface CodeFlowDiagram {
 }
 
 /**
+ * Types of nodes in the flow diagram
+ */
+export type NodeType =
+	| "component" // React/Vue/Svelte component
+	| "function" // Regular function
+	| "api" // API endpoint/route
+	| "database" // Database operation
+	| "external" // External service/API call
+	| "entry" // Entry point of the trace
+	| "hook" // React hook or similar
+	| "service" // Service class/module
+	| "utility" // Utility/helper function
+	| "state" // State management (Redux, Context, etc.)
+	| "event" // Event handler
+
+/**
  * A node in the flow diagram representing a component, function, or external dependency
  */
 export interface FlowNode {
@@ -31,7 +47,7 @@ export interface FlowNode {
 	id: string
 
 	/** Type of node determines styling and icon */
-	type: "component" | "function" | "api" | "database" | "external" | "entry"
+	type: NodeType
 
 	/** Display name (e.g., "LoginButton", "handleSubmit", "POST /api/auth") */
 	label: string

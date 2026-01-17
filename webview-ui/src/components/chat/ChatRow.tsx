@@ -34,6 +34,7 @@ import {
 	SquareMinusIcon,
 	TerminalIcon,
 	TriangleAlertIcon,
+	WorkflowIcon,
 } from "lucide-react"
 import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
@@ -687,6 +688,25 @@ export const ChatRowContent = memo(
 							</div>
 							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs py-[9px] px-2.5">
 								<span className="ph-no-capture font-medium">{tool.path}</span>
+							</div>
+						</div>
+					)
+				case "traceCodeFlow":
+					return (
+						<div>
+							<div className={HEADER_CLASSNAMES}>
+								<WorkflowIcon className="size-2" />
+								<span className="font-bold">
+									{message.type === "ask"
+										? "Cline wants to trace code flow from:"
+										: "Cline traced code flow from:"}
+								</span>
+							</div>
+							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs py-2 px-2.5">
+								<div className="ph-no-capture">
+									<div className="font-medium">{tool.entryPoint || tool.path}</div>
+									{tool.description && <div className="text-description text-xs mt-1">{tool.description}</div>}
+								</div>
 							</div>
 						</div>
 					)
