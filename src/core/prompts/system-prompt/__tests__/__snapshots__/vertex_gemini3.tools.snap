@@ -353,6 +353,31 @@
     }
   },
   {
+    "name": "trace_code_flow",
+    "description": "Trace code execution flow through a codebase starting from a specific entry point (component, function, API endpoint, etc.). Use this to help users understand how code flows through the system. The tool performs intelligent code analysis to follow data flow, function calls, and component hierarchies. Returns a structured representation of the code path that will be visualized as an interactive diagram. This is especially useful when users want to understand 'what happens when X' or 'how does Y work'.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "entry_point": {
+          "type": "STRING"
+        },
+        "description": {
+          "type": "STRING"
+        },
+        "max_depth": {
+          "type": "STRING"
+        },
+        "task_progress": {
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "entry_point",
+        "description"
+      ]
+    }
+  },
+  {
     "name": "12345670mcp0test_tool",
     "description": "test-server: A test tool",
     "parameters": {

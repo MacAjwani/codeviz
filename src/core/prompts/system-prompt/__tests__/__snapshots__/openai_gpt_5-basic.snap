@@ -266,6 +266,21 @@ Usage:
 <to_ref>HEAD</to_ref>
 </generate_explanation>
 
+## trace_code_flow
+Description: Trace code execution flow through a codebase starting from a specific entry point (component, function, API endpoint, etc.). Use this to help users understand how code flows through the system. The tool performs intelligent code analysis to follow data flow, function calls, and component hierarchies. Returns a structured representation of the code path that will be visualized as an interactive diagram. This is especially useful when users want to understand 'what happens when X' or 'how does Y work'.
+Parameters:
+- entry_point: (required) The starting point for the trace. Can be a file path with optional function/component name (e.g., 'src/components/LoginButton.tsx:handleClick', 'api/auth.ts:login', or just 'src/App.tsx'). Use search_files or list_code_definition_names first if you need to find the entry point.
+- description: (required) A clear description of what the user wants to understand. This helps guide the tracing to focus on relevant code paths. Be specific about what behavior or flow is being investigated.
+- max_depth: (optional) Maximum depth to trace (number of levels). Defaults to 10. Use lower values (3-5) for high-level overviews, higher values (10-15) for detailed traces. The trace will automatically stop at external boundaries (API calls, database operations) regardless of this value.
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
+Usage:
+<trace_code_flow>
+<entry_point>src/components/LoginButton.tsx:handleClick</entry_point>
+<description>What happens when the user clicks the login button</description>
+<max_depth>8</max_depth>
+<task_progress>Checklist here (optional)</task_progress>
+</trace_code_flow>
+
 # Tool Use Examples
 
 ## Example 1: Requesting to execute a command

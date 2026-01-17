@@ -54,6 +54,7 @@ export const config = createVariant(ModelFamily.HERMES)
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.GENERATE_EXPLANATION,
+		ClineDefaultTool.TRACE_CODE_FLOW,
 		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({

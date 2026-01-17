@@ -32,6 +32,7 @@ export enum ClineDefaultTool {
 	APPLY_PATCH = "apply_patch",
 	GENERATE_EXPLANATION = "generate_explanation",
 	USE_SKILL = "use_skill",
+	TRACE_CODE_FLOW = "trace_code_flow",
 }
 
 // Array of all tool names for compatibility
@@ -50,4 +51,5 @@ export const READ_ONLY_TOOLS = [
 	ClineDefaultTool.WEB_SEARCH,
 	ClineDefaultTool.WEB_FETCH,
 	ClineDefaultTool.USE_SKILL,
+	ClineDefaultTool.TRACE_CODE_FLOW,
 ] as const

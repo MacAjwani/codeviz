@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+// Service for code visualization operations
+service VisualizationService {
+  // Save a code flow diagram to disk
+  rpc saveDiagram(SaveDiagramRequest) returns (String);
+
+  // Load a diagram by ID
+  rpc loadDiagram(StringRequest) returns (DiagramData);
+
+  // List all saved diagrams for current workspace
+  rpc listDiagrams(EmptyRequest) returns (DiagramList);
+
+  // Delete a diagram
+  rpc deleteDiagram(StringRequest) returns (Empty);
+
+  // Get visualization settings
+  rpc getVisualizationSettings(EmptyRequest) returns (VisualizationSettings);
+
+  // Update visualization settings
+  rpc updateVisualizationSettings(VisualizationSettings) returns (Empty);
+
+  // Subscribe to diagram updates (for real-time updates)
+  rpc subscribeToDiagramUpdates(EmptyRequest) returns (stream DiagramUpdateEvent);
+}
+
+// Request message for saving a diagram
+message SaveDiagramRequest {
+  Metadata metadata = 1;
+  string diagram_json = 2; // JSON string of CodeFlowDiagram
+}
+
+// Diagram data with metadata
+message DiagramData {
+  string id = 1;
+  string diagram_json = 2;
+  int64 created_at = 3;
+  string entry_point = 4;
+  string description = 5;
+}
+
+// List of diagrams
+message DiagramList {
+  repeated DiagramInfo diagrams = 1;
+}
+
+// Diagram summary information
+message DiagramInfo {
+  string id = 1;
+  string entry_point = 2;
+  string description = 3;
+  int64 created_at = 4;
+  int32 node_count = 5;
+}
+
+// Visualization settings
+message VisualizationSettings {
+  string storage_location = 1; // e.g., ".vscode/codeviz"
+  bool auto_layout = 2;
+  string default_layout_direction = 3; // "TB", "LR", "RL", "BT"
+}
+
+// Diagram update event for streaming
+message DiagramUpdateEvent {
+  string diagram_id = 1;
+  string event_type = 2; // "created", "updated", "deleted"
+}

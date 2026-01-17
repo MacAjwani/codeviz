@@ -188,6 +188,7 @@ export type ClineSay =
 	| "task_progress"
 	| "hook_status"
 	| "hook_output_stream"
+	| "trace_code_flow"
 
 export interface ClineSayTool {
 	tool:
