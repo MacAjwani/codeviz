@@ -1,10 +1,8 @@
 import type { ToolUse } from "@core/assistant-message"
-import { getReadablePath } from "@utils/path"
-import * as path from "path"
 import { formatResponse } from "@/core/prompts/responses"
-import { CodeTracingService } from "@/services/code-tracing"
+import { DiagramStorageService } from "@/services/code-tracing"
 import { telemetryService } from "@/services/telemetry"
-import type { CodeFlowDiagram } from "@/shared/code-visualization/types"
+import type { CodeFlowDiagram, FlowEdge, FlowNode, NodeType } from "@/shared/code-visualization/types"
 import { ClineSayTool } from "@/shared/ExtensionMessage"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
@@ -15,45 +13,76 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 /**
- * Tool handler for tracing code execution flow through a codebase.
- * This tool analyzes code starting from an entry point and generates
- * a visual diagram of the code flow.
+ * Entity object from agent's analysis
+ */
+interface EntityInput {
+	label: string // Short descriptor (e.g., "AuthService.login()")
+	type: NodeType // Entity type
+	entityPurpose: string // Purpose in the larger system
+	filePath?: string // Path to code (omit for external entities)
+	lineNumber?: number // Line where entity code begins
+}
+
+/**
+ * Flow object describing data movement between entities
+ */
+interface FlowInput {
+	fromEntity: string // Label of source entity
+	toEntity: string // Label of target entity
+	trigger: string // What triggers this flow
+	dataDescription: string // What data flows
+	dataFormat: string // Format of the data
+	sampleData: string // Example data showing structure/fields - REQUIRED
+}
+
+/**
+ * Tool handler for creating entity-relationship data flow diagrams.
+ * Processes entities and flows to create a visual diagram.
  */
 export class TraceCodeFlowToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.TRACE_CODE_FLOW
 
-	private tracingService: CodeTracingService
-
-	constructor() {
-		this.tracingService = new CodeTracingService()
-	}
+	constructor() {}
 
 	getDescription(block: ToolUse): string {
-		const entryPoint = block.params.entry_point || "unknown"
-		const description = block.params.description || ""
-		return `[${block.name} from '${entryPoint}'${description ? `: ${description.substring(0, 50)}...` : ""}]`
+		const description = block.params.description || "data flow"
+		const entitiesParam = (block.params as any).entities
+		let entityCount = 0
+		try {
+			const entities = typeof entitiesParam === "string" ? JSON.parse(entitiesParam) : entitiesParam
+			entityCount = Array.isArray(entities) ? entities.length : 0
+		} catch {
+			// Ignore parsing errors in description
+		}
+		return `[${block.name}: ${description.substring(0, 50)}... (${entityCount} entities)]`
 	}
 
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const entryPoint = block.params.entry_point
 		const description = block.params.description
-		const maxDepth = block.params.max_depth
+		const entryPoint = block.params.entry_point
+		const entitiesParam = (block.params as any).entities
 
-		const config = uiHelpers.getConfig()
+		let entityCount = 0
+		try {
+			const entities = typeof entitiesParam === "string" ? JSON.parse(entitiesParam) : entitiesParam
+			entityCount = Array.isArray(entities) ? entities.length : 0
+		} catch {
+			// Ignore parsing errors in partial handling
+		}
 
 		const sharedMessageProps = {
 			tool: "traceCodeFlow",
-			path: getReadablePath(config.cwd, uiHelpers.removeClosingTag(block, "entry_point", entryPoint) || ""),
+			path: "", // No specific file path
 			content: "",
-			entryPoint: uiHelpers.removeClosingTag(block, "entry_point", entryPoint),
 			description: uiHelpers.removeClosingTag(block, "description", description),
-			maxDepth: uiHelpers.removeClosingTag(block, "max_depth", maxDepth),
+			entryPoint: uiHelpers.removeClosingTag(block, "entry_point", entryPoint),
+			nodeCount: entityCount,
 		} satisfies ClineSayTool
 
 		const partialMessage = JSON.stringify(sharedMessageProps)
 
-		// Always show as ask since this is a read-only analysis tool
-		if (await uiHelpers.shouldAutoApproveToolWithPath(block.name, entryPoint)) {
+		// Always show as ask since this generates a diagram
+		if (await uiHelpers.shouldAutoApproveToolWithPath(block.name, "")) {
 			await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "tool")
 			await uiHelpers.say("tool", partialMessage, undefined, undefined, block.partial)
 		} else {
@@ -63,10 +92,18 @@ export class TraceCodeFlowToolHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		const entryPoint: string | undefined = block.params.entry_point
+		console.log("[TraceCodeFlow] Tool invoked with entity-relationship model")
+
 		const description: string | undefined = block.params.description
-		const maxDepthStr: string | undefined = block.params.max_depth
-		const maxDepth = maxDepthStr ? parseInt(maxDepthStr, 10) : 10
+		const entryPoint: string | undefined = block.params.entry_point
+		const entitiesParam: string | string[] | undefined = (block.params as any).entities
+		const flowsParam: string | string[] | undefined = (block.params as any).flows
+
+		console.log("[TraceCodeFlow] Parameters received:")
+		console.log(`  - description: ${description?.substring(0, 100)}`)
+		console.log(`  - entry_point: ${entryPoint}`)
+		console.log(`  - entities type: ${typeof entitiesParam}`)
+		console.log(`  - flows type: ${typeof flowsParam}`)
 
 		// Extract provider information for telemetry
 		const apiConfig = config.services.stateManager.getApiConfiguration()
@@ -74,45 +111,170 @@ export class TraceCodeFlowToolHandler implements IFullyManagedTool {
 		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 
 		// Validate required parameters
-		if (!entryPoint) {
-			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(this.name, "entry_point")
-		}
-
 		if (!description) {
+			console.log("[TraceCodeFlow] ERROR: Missing required parameter 'description'")
 			config.taskState.consecutiveMistakeCount++
 			return await config.callbacks.sayAndCreateMissingParamError(this.name, "description")
 		}
 
-		config.taskState.consecutiveMistakeCount = 0
-
-		// Parse the entry point
-		const { filePath, symbolName } = this.tracingService.parseEntryPoint(entryPoint, config.cwd)
-
-		// Check if the file exists
-		const fileExists = await this.tracingService.fileExists(filePath)
-		if (!fileExists) {
-			return formatResponse.toolError(`Entry point file not found: ${entryPoint}`)
+		if (!entryPoint) {
+			console.log("[TraceCodeFlow] ERROR: Missing required parameter 'entry_point'")
+			config.taskState.consecutiveMistakeCount++
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "entry_point")
 		}
 
-		// Read the entry point file
-		const fileContent = await this.tracingService.readFile(filePath)
-		if (!fileContent) {
-			return formatResponse.toolError(`Failed to read entry point file: ${entryPoint}`)
+		if (!entitiesParam) {
+			console.log("[TraceCodeFlow] ERROR: Missing required parameter 'entities'")
+			config.taskState.consecutiveMistakeCount++
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "entities")
+		}
+
+		if (!flowsParam) {
+			console.log("[TraceCodeFlow] ERROR: Missing required parameter 'flows'")
+			config.taskState.consecutiveMistakeCount++
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "flows")
+		}
+
+		console.log("[TraceCodeFlow] All required parameters present")
+		config.taskState.consecutiveMistakeCount = 0
+
+		// Parse entities
+		console.log("[TraceCodeFlow] Parsing entities...")
+		let entities: EntityInput[]
+		try {
+			entities = typeof entitiesParam === "string" ? JSON.parse(entitiesParam) : entitiesParam
+
+			if (!Array.isArray(entities)) {
+				console.log(`[TraceCodeFlow] ERROR: entities is not an array, got ${typeof entities}`)
+				return formatResponse.toolError(
+					`Parameter 'entities' must be an array of entity objects. Received: ${typeof entities}. ` +
+						`Example: [{"label":"User","type":"user","entityPurpose":"Person using the application"}]`,
+				)
+			}
+
+			if (entities.length === 0) {
+				console.log("[TraceCodeFlow] ERROR: entities array is empty")
+				return formatResponse.toolError("At least one entity is required in the 'entities' array.")
+			}
+
+			// Validate entity structure
+			const validTypes: NodeType[] = [
+				"user",
+				"ui_element",
+				"component",
+				"method",
+				"api_endpoint",
+				"database",
+				"external_service",
+				"event_handler",
+				"state_manager",
+			]
+
+			for (let i = 0; i < entities.length; i++) {
+				const entity = entities[i]
+				if (!entity.label || !entity.type || !entity.entityPurpose) {
+					console.log(`[TraceCodeFlow] ERROR: Entity ${i} is missing required fields`)
+					return formatResponse.toolError(
+						`Entity at index ${i} is missing required fields. Each entity must have: label, type, entityPurpose. ` +
+							`Received: ${JSON.stringify(entity).substring(0, 200)}`,
+					)
+				}
+
+				if (!validTypes.includes(entity.type)) {
+					console.log(`[TraceCodeFlow] ERROR: Entity ${i} has invalid type: ${entity.type}`)
+					return formatResponse.toolError(
+						`Entity at index ${i} has invalid type "${entity.type}". Valid types: ${validTypes.join(", ")}`,
+					)
+				}
+			}
+
+			console.log(`[TraceCodeFlow] Parsed ${entities.length} entities successfully`)
+		} catch (error) {
+			const errorMsg = error instanceof Error ? error.message : "Unknown error"
+			console.log(`[TraceCodeFlow] ERROR: JSON parsing failed: ${errorMsg}`)
+			return formatResponse.toolError(
+				`Failed to parse 'entities' parameter: ${errorMsg}\n\n` +
+					`Entities value: ${typeof entitiesParam === "string" ? entitiesParam.substring(0, 200) : JSON.stringify(entitiesParam).substring(0, 200)}\n\n` +
+					`Make sure entities is a valid JSON array of entity objects.`,
+			)
+		}
+
+		// Parse flows
+		console.log("[TraceCodeFlow] Parsing flows...")
+		let flows: FlowInput[]
+		try {
+			flows = typeof flowsParam === "string" ? JSON.parse(flowsParam) : flowsParam
+
+			if (!Array.isArray(flows)) {
+				console.log(`[TraceCodeFlow] ERROR: flows is not an array, got ${typeof flows}`)
+				return formatResponse.toolError(`Parameter 'flows' must be an array of flow objects. Received: ${typeof flows}.`)
+			}
+
+			if (flows.length === 0) {
+				console.log("[TraceCodeFlow] ERROR: flows array is empty")
+				return formatResponse.toolError("At least one flow is required in the 'flows' array.")
+			}
+
+			// Validate flow structure
+			for (let i = 0; i < flows.length; i++) {
+				const flow = flows[i]
+				if (
+					!flow.fromEntity ||
+					!flow.toEntity ||
+					!flow.trigger ||
+					!flow.dataDescription ||
+					!flow.dataFormat ||
+					!flow.sampleData
+				) {
+					console.log(`[TraceCodeFlow] ERROR: Flow ${i} is missing required fields`)
+					return formatResponse.toolError(
+						`Flow at index ${i} is missing required fields. Each flow must have: fromEntity, toEntity, trigger, dataDescription, dataFormat, sampleData. ` +
+							`The sampleData field is REQUIRED and should show the structure/fields of the data. ` +
+							`Received: ${JSON.stringify(flow).substring(0, 200)}`,
+					)
+				}
+
+				// Validate that fromEntity and toEntity reference existing entities
+				const entityLabels = entities.map((e) => e.label)
+				if (!entityLabels.includes(flow.fromEntity)) {
+					console.log(`[TraceCodeFlow] ERROR: Flow ${i} references unknown fromEntity: ${flow.fromEntity}`)
+					return formatResponse.toolError(
+						`Flow at index ${i} references unknown fromEntity "${flow.fromEntity}". ` +
+							`Available entities: ${entityLabels.join(", ")}`,
+					)
+				}
+				if (!entityLabels.includes(flow.toEntity)) {
+					console.log(`[TraceCodeFlow] ERROR: Flow ${i} references unknown toEntity: ${flow.toEntity}`)
+					return formatResponse.toolError(
+						`Flow at index ${i} references unknown toEntity "${flow.toEntity}". ` +
+							`Available entities: ${entityLabels.join(", ")}`,
+					)
+				}
+			}
+
+			console.log(`[TraceCodeFlow] Parsed ${flows.length} flows successfully`)
+		} catch (error) {
+			const errorMsg = error instanceof Error ? error.message : "Unknown error"
+			console.log(`[TraceCodeFlow] ERROR: JSON parsing failed: ${errorMsg}`)
+			return formatResponse.toolError(
+				`Failed to parse 'flows' parameter: ${errorMsg}\n\n` +
+					`Flows value: ${typeof flowsParam === "string" ? flowsParam.substring(0, 200) : JSON.stringify(flowsParam).substring(0, 200)}\n\n` +
+					`Make sure flows is a valid JSON array of flow objects.`,
+			)
 		}
 
 		const sharedMessageProps = {
 			tool: "traceCodeFlow",
-			path: getReadablePath(config.cwd, entryPoint),
+			path: "",
 			content: "",
-			entryPoint,
 			description,
-			maxDepth: maxDepth.toString(),
+			entryPoint,
+			nodeCount: entities.length,
 		} satisfies ClineSayTool
 
 		const completeMessage = JSON.stringify(sharedMessageProps)
 
-		if (await config.callbacks.shouldAutoApproveToolWithPath(block.name, entryPoint)) {
+		if (await config.callbacks.shouldAutoApproveToolWithPath(block.name, "")) {
 			// Auto-approval flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
@@ -130,7 +292,7 @@ export class TraceCodeFlowToolHandler implements IFullyManagedTool {
 			)
 		} else {
 			// Manual approval flow
-			const notificationMessage = `Cline wants to trace code flow from ${entryPoint}`
+			const notificationMessage = `Cline wants to create a code flow diagram (${entities.length} entities)`
 
 			// Show notification
 			showNotificationForApproval(notificationMessage, config.autoApprovalSettings.enableNotifications)
@@ -176,77 +338,197 @@ export class TraceCodeFlowToolHandler implements IFullyManagedTool {
 			throw error
 		}
 
-		// Create the initial diagram structure
-		const diagram = this.tracingService.createEmptyDiagram(entryPoint, description, maxDepth)
+		// Show initial status
+		await config.callbacks.say(
+			"trace_code_flow",
+			JSON.stringify({
+				status: "initializing",
+				description,
+				entryPoint,
+				progress: { current: 0, total: entities.length },
+			}),
+		)
 
-		// Create the entry node
-		const entryNode = this.tracingService.createBasicNode(filePath, symbolName, config.cwd, fileContent)
-		entryNode.type = "entry"
-		diagram.nodes.push(entryNode)
+		// Preview what will be created
+		console.log(`\n[TraceCodeFlow] DIAGRAM PREVIEW`)
+		console.log(`Description: ${description}`)
+		console.log(`Entry Point: ${entryPoint}`)
+		console.log(`\nENTITIES (${entities.length} total):`)
+		entities.forEach((entity, i) => {
+			console.log(
+				`  ${i + 1}. [${entity.type}] ${entity.label}` +
+					(entity.filePath ? ` (${entity.filePath}:${entity.lineNumber || "?"})` : " (external)"),
+			)
+		})
+		console.log(`\nFLOWS (${flows.length} total):`)
+		flows.forEach((flow, i) => {
+			console.log(`  ${i + 1}. ${flow.fromEntity} --[${flow.trigger}]--> ${flow.toEntity}`)
+			console.log(`     Data: ${flow.dataDescription}`)
+			console.log(`     Format: ${flow.dataFormat}`)
+			console.log(`     Sample: ${flow.sampleData.substring(0, 80)}${flow.sampleData.length > 80 ? "..." : ""}`)
+		})
+		console.log(`\n`)
 
-		// Detect language and framework
-		const ext = path.extname(filePath)
-		const language = this.tracingService.getLanguageFromExtension(ext)
-		const framework = this.tracingService.detectFramework(fileContent)
+		try {
+			// Build diagram from entities and flows
+			console.log(`[TraceCodeFlow] Building diagram from ${entities.length} entities and ${flows.length} flows...`)
+			const diagram = this.buildDiagramFromEntities(description, entryPoint, entities, flows, config.cwd)
+			console.log(`[TraceCodeFlow] Diagram built with ${diagram.nodes.length} nodes and ${diagram.edges.length} edges`)
 
-		// Update metadata
-		const finalDiagram = this.tracingService.updateDiagramMetadata(diagram, language, framework)
+			// Save the diagram
+			console.log("[TraceCodeFlow] Saving diagram to disk...")
+			const diagramId = await this.saveDiagram(config, diagram)
+			console.log(`[TraceCodeFlow] Diagram saved successfully with ID: ${diagramId}`)
 
-		// Return instructions for the LLM to continue the analysis
-		// The actual tracing will be done by the LLM using read_file and search_files tools
-		const result = this.buildTraceResponse(finalDiagram, entryPoint, description, fileContent, symbolName)
+			// Show final status
+			await config.callbacks.say(
+				"trace_code_flow",
+				JSON.stringify({
+					status: "complete",
+					description,
+					entryPoint,
+					diagramId,
+					nodeCount: diagram.nodes.length,
+				}),
+			)
 
-		return result
+			console.log("[TraceCodeFlow] Tool completed successfully")
+			return formatResponse.toolResult(
+				`Code flow diagram created successfully.\n\n` +
+					`Description: ${description}\n` +
+					`Entry Point: ${entryPoint}\n` +
+					`Nodes: ${diagram.nodes.length}\n` +
+					`Edges: ${diagram.edges.length}\n` +
+					`Diagram ID: ${diagramId}\n\n` +
+					`The interactive diagram is now available. Click "View Diagram" to explore the code flow.`,
+			)
+		} catch (error) {
+			const errorMsg = error instanceof Error ? error.message : "Unknown error"
+			const errorStack = error instanceof Error ? error.stack : undefined
+			console.log(`[TraceCodeFlow] ERROR: Failed to create diagram: ${errorMsg}`)
+			if (errorStack) {
+				console.log(`[TraceCodeFlow] Stack trace:`, errorStack)
+			}
+
+			await config.callbacks.say(
+				"trace_code_flow",
+				JSON.stringify({
+					status: "error",
+					description,
+					entryPoint,
+					error: errorMsg,
+				}),
+			)
+			return formatResponse.toolError(`Failed to create diagram: ${errorMsg}`)
+		}
 	}
 
 	/**
-	 * Build the response that instructs the LLM how to continue the trace.
+	 * Build a CodeFlowDiagram from entities and flows.
+	 * Creates nodes from entities and edges from flow information.
 	 */
-	private buildTraceResponse(
-		diagram: CodeFlowDiagram,
-		entryPoint: string,
+	private buildDiagramFromEntities(
 		description: string,
-		fileContent: string,
-		symbolName?: string,
-	): string {
-		const truncatedContent = fileContent.length > 2000 ? fileContent.substring(0, 2000) + "\n... (truncated)" : fileContent
+		entryPoint: string,
+		entities: EntityInput[],
+		flows: FlowInput[],
+		workspaceRoot: string,
+	): CodeFlowDiagram {
+		console.log("[TraceCodeFlow] Building diagram from entities and flows...")
 
-		return `## Code Flow Trace Initialized
+		// Convert entities to FlowNode format
+		const nodes: FlowNode[] = entities.map((entity, index) => {
+			// Resolve file path - if relative, prepend workspace root (only if filePath exists)
+			let resolvedPath: string | undefined = entity.filePath
+			if (resolvedPath && !resolvedPath.startsWith("/") && !resolvedPath.match(/^[A-Za-z]:/)) {
+				// Relative path - make it absolute
+				resolvedPath = `${workspaceRoot}/${resolvedPath}`.replace(/\/\//g, "/")
+			}
 
-**Entry Point:** ${entryPoint}
-**Description:** ${description}
-**Initial Node:** ${symbolName || path.basename(entryPoint)}
+			return {
+				id: `entity-${index}-${entity.label
+					.replace(/\s+/g, "-")
+					.toLowerCase()
+					.replace(/[^a-z0-9-]/g, "")}`,
+				label: entity.label,
+				type: entity.type,
+				filePath: resolvedPath, // Optional - external entities won't have this
+				lineNumber: entity.lineNumber,
+				entityPurpose: entity.entityPurpose,
+			}
+		})
 
-### Entry Point File Content:
-\`\`\`
-${truncatedContent}
-\`\`\`
+		// Build edges from flows
+		console.log(`[TraceCodeFlow] Creating edges from ${flows.length} flows...`)
+		const edges: FlowEdge[] = flows.map((flow, index) => {
+			// Find source and target nodes by label
+			const sourceNode = nodes.find((n) => n.label === flow.fromEntity)
+			const targetNode = nodes.find((n) => n.label === flow.toEntity)
 
-### Initial Diagram Structure:
-\`\`\`json
-${this.tracingService.serializeDiagram(diagram)}
-\`\`\`
+			if (!sourceNode || !targetNode) {
+				throw new Error(`Flow ${index}: Could not find nodes for "${flow.fromEntity}" -> "${flow.toEntity}"`)
+			}
 
-### Next Steps for Analysis:
+			// Determine edge type based on trigger
+			let edgeType: FlowEdge["type"] = "call"
+			const triggerLower = flow.trigger.toLowerCase()
+			if (triggerLower.includes("event") || triggerLower.includes("click")) {
+				edgeType = "event"
+			} else if (triggerLower.includes("render") || triggerLower.includes("display")) {
+				edgeType = "render"
+			} else if (triggerLower.includes("return") || triggerLower.includes("response") || triggerLower.includes("data")) {
+				edgeType = "dataflow"
+			}
 
-To complete this code flow trace, analyze the entry point code and:
+			return {
+				id: `${sourceNode.id}->${targetNode.id}-${index}`,
+				source: sourceNode.id,
+				target: targetNode.id,
+				label: flow.trigger,
+				type: edgeType,
+				metadata: {
+					trigger: flow.trigger,
+					dataDescription: flow.dataDescription,
+					dataFormat: flow.dataFormat,
+					sampleData: flow.sampleData,
+				},
+			}
+		})
 
-1. **Identify function/method calls** - Look for function invocations, method calls, and component renders
-2. **Follow imports** - Trace imported modules and their usage
-3. **Track data flow** - Identify props, parameters, and return values
-4. **Detect external boundaries** - Note API calls, database operations, and external services
+		console.log(`[TraceCodeFlow] Created ${nodes.length} nodes and ${edges.length} edges`)
 
-For each node you identify, provide:
-- **componentResponsibility**: What is this component/function's purpose?
-- **inputDescription**: What data flows in (props, params, state)?
-- **outputDescription**: What data flows out (returns, side effects)?
-- **fileResponsibility**: What is this file's overall purpose?
-- **codeSegmentDescription**: What does the relevant code section do?
-- **codeSegment**: The actual code snippet
+		// Create the diagram
+		const diagram: CodeFlowDiagram = {
+			entryPoint,
+			description,
+			nodes,
+			edges,
+			metadata: {
+				timestamp: Date.now(),
+				maxDepth: nodes.length,
+				totalNodes: nodes.length,
+				framework: "generic",
+				language: "typescript",
+			},
+		}
 
-Use \`read_file\` to examine imported files and \`search_files\` to find related code.
-Build up the diagram by adding nodes and edges for each significant code path.
+		return diagram
+	}
 
-When you have completed the analysis, return the final diagram JSON with all nodes and edges populated.`
+	/**
+	 * Save the diagram to disk
+	 */
+	private async saveDiagram(config: TaskConfig, diagram: CodeFlowDiagram): Promise<string> {
+		const workspaceRoot = config.cwd
+		console.log(`[TraceCodeFlow] Workspace root: ${workspaceRoot}`)
+
+		console.log("[TraceCodeFlow] Creating DiagramStorageService...")
+		const storageService = new DiagramStorageService(workspaceRoot)
+
+		console.log("[TraceCodeFlow] Calling storageService.saveDiagram()...")
+		const diagramId = await storageService.saveDiagram(diagram)
+		console.log(`[TraceCodeFlow] DiagramStorageService returned ID: ${diagramId}`)
+
+		return diagramId
 	}
 }

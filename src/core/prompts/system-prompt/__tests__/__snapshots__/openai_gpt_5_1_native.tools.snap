@@ -421,22 +421,26 @@
     "type": "function",
     "function": {
       "name": "trace_code_flow",
-      "description": "Trace code execution flow through a codebase starting from a specific entry point (component, function, API endpoint, etc.). Use this to help users understand how code flows through the system. The tool performs intelligent code analysis to follow data flow, function calls, and component hierarchies. Returns a structured representation of the code path that will be visualized as an interactive diagram. This is especially useful when users want to understand 'what happens when X' or 'how does Y work'.",
+      "description": "Create an interactive code flow diagram from your traced analysis. After tracing a code flow through the codebase, provide a high-level description and list of steps. The tool will interactively guide you through providing details for each step, then generate a visual diagram.",
       "strict": false,
       "parameters": {
         "type": "object",
         "properties": {
-          "entry_point": {
-            "type": "string",
-            "description": "The starting point for the trace. Can be a file path with optional function/component name (e.g., 'src/components/LoginButton.tsx:handleClick', 'api/auth.ts:login', or just 'src/App.tsx'). Use search_files or list_code_definition_names first if you need to find the entry point."
-          },
           "description": {
             "type": "string",
-            "description": "A clear description of what the user wants to understand. This helps guide the tracing to focus on relevant code paths. Be specific about what behavior or flow is being investigated."
+            "description": "A clear description of what this code flow represents. Describe the overall behavior or feature being traced."
           },
-          "max_depth": {
+          "entry_point": {
             "type": "string",
-            "description": "Maximum depth to trace (number of levels). Defaults to 10. Use lower values (3-5) for high-level overviews, higher values (10-15) for detailed traces. The trace will automatically stop at external boundaries (API calls, database operations) regardless of this value."
+            "description": "The starting point of the flow. Format: 'filePath:symbolName' or just 'filePath'. This is where the user interaction or execution begins."
+          },
+          "steps": {
+            "type": "string",
+            "description": "Array of step objects as JSON. REQUIRED fields: label, type, filePath, description, inputs, outputs. OPTIONAL: lineNumber, connectionTo. Types: ui_element, component, function, api, hook, service, utility, database, external, entry, state, event. For \"connectionTo\", describe how this connects to the next step: {type: \"function_call\"|\"event\"|\"http\"|\"callback\"|\"return\"|\"render\"|\"state_update\", data: \"what is passed\"}. NOTE: Do NOT include codeSegment in the JSON - use the code_segments parameter instead."
+          },
+          "code_segments": {
+            "type": "string",
+            "description": "Code snippets for each step, separated by \"---STEP---\". Use markdown code fences with language identifier (e.g., ```typescript, ```python, ```html). Provide one code segment for each step in the same order as the steps array. Format: ```language\\ncode\\n```"
           },
           "task_progress": {
             "type": "string",
@@ -444,8 +448,10 @@
           }
         },
         "required": [
+          "description",
           "entry_point",
-          "description"
+          "steps",
+          "code_segments"
         ],
         "additionalProperties": false
       }

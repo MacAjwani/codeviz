@@ -157,6 +157,7 @@ export const ChatRowContent = memo(
 			onRelinquishControl,
 			vscodeTerminalExecutionMode,
 			clineMessages,
+			navigateToVisualization,
 		} = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
@@ -1134,6 +1135,146 @@ export const ChatRowContent = memo(
 													{explanationInfo.toRef || "working directory"}
 												</code>
 											</div>
+										)}
+									</div>
+								)}
+							</div>
+						)
+					}
+					case "trace_code_flow": {
+						let traceInfo: {
+							status: "initializing" | "analyzing" | "node_added" | "complete" | "error" | "analysis_warning"
+							entryPoint?: string
+							description?: string
+							currentFile?: string
+							currentDepth?: number
+							nodeLabel?: string
+							nodeType?: string
+							progress?: { current: number; total: number }
+							diagramId?: string
+							nodeCount?: number
+							error?: string
+							message?: string
+						} = {
+							status: "initializing",
+						}
+						try {
+							if (message.text) {
+								traceInfo = JSON.parse(message.text)
+							}
+						} catch {
+							// Use defaults if parsing fails
+						}
+
+						// Check if trace was interrupted
+						const wasCancelled =
+							(traceInfo.status === "initializing" || traceInfo.status === "analyzing") &&
+							(!isLast ||
+								lastModifiedMessage?.ask === "resume_task" ||
+								lastModifiedMessage?.ask === "resume_completed_task")
+						const isInProgress =
+							(traceInfo.status === "initializing" ||
+								traceInfo.status === "analyzing" ||
+								traceInfo.status === "node_added") &&
+							!wasCancelled
+						const isComplete = traceInfo.status === "complete"
+						const isError = traceInfo.status === "error"
+						const isWarning = traceInfo.status === "analysis_warning"
+
+						return (
+							<div className="bg-code flex flex-col border border-editor-group-border rounded-sm py-2.5 px-3">
+								<div className="flex items-center">
+									{isInProgress ? (
+										<ProgressIndicator />
+									) : isError ? (
+										<CircleXIcon className="size-2 mr-2 text-error" />
+									) : wasCancelled ? (
+										<CircleSlashIcon className="size-2 mr-2" />
+									) : isWarning ? (
+										<TriangleAlertIcon className="size-2 mr-2 text-warning" />
+									) : (
+										<CheckIcon className="size-2 mr-2 text-success" />
+									)}
+									<span className="font-semibold">
+										{isInProgress
+											? traceInfo.status === "initializing"
+												? "Initializing code trace"
+												: traceInfo.status === "analyzing"
+													? "Analyzing code flow"
+													: "Adding node"
+											: isError
+												? "Code trace failed"
+												: wasCancelled
+													? "Code trace cancelled"
+													: isWarning
+														? "Analysis warning"
+														: "Code trace complete"}
+									</span>
+								</div>
+
+								{/* Show current file being analyzed */}
+								{isInProgress && traceInfo.currentFile && (
+									<div className="opacity-80 ml-6 mt-1.5 text-xs">
+										<div className="flex items-center gap-2">
+											<WorkflowIcon className="size-2" />
+											<code className="bg-quote rounded-sm py-0.5 px-1.5">{traceInfo.currentFile}</code>
+											{traceInfo.currentDepth !== undefined && (
+												<span className="opacity-70">(depth {traceInfo.currentDepth})</span>
+											)}
+										</div>
+									</div>
+								)}
+
+								{/* Show progress */}
+								{isInProgress && traceInfo.progress && (
+									<div className="opacity-70 ml-6 mt-1 text-xs">
+										Progress: {traceInfo.progress.current} / {traceInfo.progress.total} nodes
+									</div>
+								)}
+
+								{/* Show node added info */}
+								{traceInfo.status === "node_added" && traceInfo.nodeLabel && (
+									<div className="opacity-80 ml-6 mt-1.5 text-xs">
+										Added: <code className="bg-quote rounded-sm py-0.5 px-1.5">{traceInfo.nodeLabel}</code>
+										{traceInfo.nodeType && <span className="opacity-70 ml-2">({traceInfo.nodeType})</span>}
+									</div>
+								)}
+
+								{/* Show error */}
+								{isError && traceInfo.error && (
+									<div className="opacity-80 ml-6 mt-1.5 text-error break-words">{traceInfo.error}</div>
+								)}
+
+								{/* Show warning message */}
+								{isWarning && traceInfo.message && (
+									<div className="opacity-80 ml-6 mt-1.5 text-warning break-words">{traceInfo.message}</div>
+								)}
+
+								{/* Show entry point and description */}
+								{!isError && (traceInfo.entryPoint || traceInfo.description) && (
+									<div className="opacity-80 ml-6 mt-1.5">
+										{traceInfo.description && <div className="text-xs">{traceInfo.description}</div>}
+										{traceInfo.entryPoint && (
+											<div className="opacity-70 mt-1.5 break-all text-xs">
+												Entry:{" "}
+												<code className="bg-quote rounded-sm py-0.5 px-1.5">{traceInfo.entryPoint}</code>
+											</div>
+										)}
+									</div>
+								)}
+
+								{/* Show completion info and View Diagram button */}
+								{isComplete && traceInfo.nodeCount !== undefined && (
+									<div className="ml-6 mt-2 flex items-center justify-between">
+										<div className="opacity-80 text-xs">
+											{traceInfo.nodeCount} node{traceInfo.nodeCount !== 1 ? "s" : ""} traced
+										</div>
+										{traceInfo.diagramId && (
+											<button
+												className="bg-button hover:bg-button-hover text-button-foreground px-3 py-1 rounded-xs text-xs font-medium transition-colors"
+												onClick={() => navigateToVisualization(traceInfo.diagramId!)}>
+												View Diagram
+											</button>
 										)}
 									</div>
 								)}

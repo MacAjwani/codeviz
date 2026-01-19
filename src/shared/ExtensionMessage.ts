@@ -209,6 +209,8 @@ export interface ClineSayTool {
 	entryPoint?: string
 	description?: string
 	maxDepth?: string
+	nodeCount?: number
+	edgeCount?: number
 	diff?: string
 	content?: string
 	regex?: string

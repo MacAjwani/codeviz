@@ -25,14 +25,9 @@ export interface ParsedNodeInfo {
 	id: string
 	type: NodeType
 	label: string
-	filePath: string
+	filePath?: string
 	lineNumber?: number
-	componentResponsibility: string
-	inputDescription: string
-	outputDescription: string
-	fileResponsibility: string
-	codeSegmentDescription: string
-	codeSegment: string
+	entityPurpose: string
 }
 
 /**
@@ -78,26 +73,26 @@ export class CodeTracingService {
 
 		// API/route detection
 		if (filePath.includes("/api/") || filePath.includes("/routes/")) {
-			return "api"
+			return "api_endpoint"
 		}
 
-		// Hook detection
+		// Hook detection (React hooks are event handlers)
 		if (symbolName?.startsWith("use") || basename.startsWith("use")) {
-			return "hook"
+			return "event_handler"
 		}
 
 		// Utility detection
 		if (filePath.includes("/utils/") || filePath.includes("/helpers/") || filePath.includes("/lib/")) {
-			return "utility"
+			return "method"
 		}
 
 		// Service detection
 		if (filePath.includes("/services/") || basename.endsWith("Service")) {
-			return "service"
+			return "method"
 		}
 
-		// Default to function
-		return "function"
+		// Default to method
+		return "method"
 	}
 
 	/**
@@ -121,12 +116,7 @@ export class CodeTracingService {
 			label: info.label,
 			filePath: info.filePath,
 			lineNumber: info.lineNumber,
-			componentResponsibility: info.componentResponsibility,
-			inputDescription: info.inputDescription,
-			outputDescription: info.outputDescription,
-			fileResponsibility: info.fileResponsibility,
-			codeSegmentDescription: info.codeSegmentDescription,
-			codeSegment: info.codeSegment,
+			entityPurpose: info.entityPurpose,
 		}
 	}
 
@@ -134,7 +124,7 @@ export class CodeTracingService {
 	 * Create a basic FlowNode with minimal information.
 	 * Used when we only have file path and symbol name.
 	 */
-	createBasicNode(filePath: string, symbolName: string | undefined, cwd: string, codeSegment?: string): FlowNode {
+	createBasicNode(filePath: string, symbolName: string | undefined, cwd: string): FlowNode {
 		const relativePath = path.relative(cwd, filePath)
 		const nodeType = this.determineNodeType(filePath, symbolName)
 		const id = this.generateNodeId(relativePath, symbolName)
@@ -146,12 +136,7 @@ export class CodeTracingService {
 			label,
 			filePath: relativePath,
 			lineNumber: 1,
-			componentResponsibility: `Pending analysis of ${label}`,
-			inputDescription: "Pending analysis",
-			outputDescription: "Pending analysis",
-			fileResponsibility: `File: ${relativePath}`,
-			codeSegmentDescription: "Pending analysis",
-			codeSegment: codeSegment || "",
+			entityPurpose: `Pending analysis of ${label}`,
 		}
 	}
 
@@ -238,6 +223,12 @@ export class CodeTracingService {
 			target: targetId,
 			label: label || "calls",
 			type: type || "call",
+			metadata: {
+				trigger: label || "calls",
+				dataDescription: "Pending analysis",
+				dataFormat: "Unknown",
+				sampleData: "{ /* pending analysis */ }",
+			},
 		}
 	}
 

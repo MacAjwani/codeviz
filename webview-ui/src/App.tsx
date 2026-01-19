@@ -1,4 +1,5 @@
 import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
+import { StringRequest } from "@shared/proto/cline/common"
 import { useEffect } from "react"
 import AccountView from "./components/account/AccountView"
 import ChatView from "./components/chat/ChatView"
@@ -6,11 +7,12 @@ import HistoryView from "./components/history/HistoryView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import OnboardingView from "./components/onboarding/OnboardingView"
 import SettingsView from "./components/settings/SettingsView"
+import { VisualizationView } from "./components/visualization"
 import WelcomeView from "./components/welcome/WelcomeView"
 import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
 import { Providers } from "./Providers"
-import { UiServiceClient } from "./services/grpc-client"
+import { FileServiceClient, UiServiceClient } from "./services/grpc-client"
 
 const AppContent = () => {
 	const {
@@ -24,6 +26,8 @@ const AppContent = () => {
 		showHistory,
 		showAccount,
 		showAnnouncement,
+		showVisualization,
+		currentDiagramId,
 		onboardingModels,
 		setShowAnnouncement,
 		setShouldShowAnnouncement,
@@ -33,6 +37,7 @@ const AppContent = () => {
 		hideHistory,
 		hideAccount,
 		hideAnnouncement,
+		hideVisualization,
 	} = useExtensionState()
 
 	const { clineUser, organizations, activeOrganization } = useClineAuth()
@@ -73,10 +78,28 @@ const AppContent = () => {
 					organizations={organizations}
 				/>
 			)}
+			{showVisualization && currentDiagramId && (
+				<VisualizationView
+					diagramId={currentDiagramId}
+					onClose={hideVisualization}
+					onOpenFile={(filePath, lineNumber) => {
+						// Open file in editor - format with line number if provided
+						const filePathWithLine = lineNumber ? `${filePath}:${lineNumber}` : filePath
+						FileServiceClient.openFile(StringRequest.create({ value: filePathWithLine }))
+							.then(() => {
+								// Optional: hide visualization after opening file
+								// hideVisualization()
+							})
+							.catch((error: Error) => {
+								console.error("Failed to open file:", error)
+							})
+					}}
+				/>
+			)}
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
 			<ChatView
 				hideAnnouncement={hideAnnouncement}
-				isHidden={showSettings || showHistory || showMcp || showAccount}
+				isHidden={showSettings || showHistory || showMcp || showAccount || showVisualization}
 				showAnnouncement={showAnnouncement}
 				showHistoryView={navigateToHistory}
 			/>

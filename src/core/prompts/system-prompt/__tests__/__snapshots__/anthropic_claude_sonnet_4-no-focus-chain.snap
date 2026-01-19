@@ -241,16 +241,31 @@ Usage:
 </generate_explanation>
 
 ## trace_code_flow
-Description: Trace code execution flow through a codebase to understand data flow and component interactions. Analyzes code starting from an entry point and follows the execution path through functions, components, API calls, and external dependencies. Generates a structured flow representation optimized for visualization. Use this when the user wants to understand code behavior, trace bugs, or learn how features work. The trace intelligently stops at external boundaries and produces detailed explanations for each step.
+Description: Generate an interactive visual diagram from your code flow analysis. First, trace the code flow using your normal analysis tools to understand how execution moves through the system. Then call this tool with a description, entry point, and list of steps. The tool will interactively collect detailed information for each step and generate a saved diagram showing components, functions, and their relationships.
 Parameters:
-- entry_point: (required) The starting point for the trace. Can be a file path with optional function/component name (e.g., 'src/components/LoginButton.tsx:handleClick', 'api/auth.ts:login', or just 'src/App.tsx'). Use search_files or list_code_definition_names first if you need to find the entry point.
-- description: (required) A clear description of what the user wants to understand. This helps guide the tracing to focus on relevant code paths. Be specific about what behavior or flow is being investigated.
-- max_depth: (optional) Maximum depth to trace (number of levels). Defaults to 10. Use lower values (3-5) for high-level overviews, higher values (10-15) for detailed traces. The trace will automatically stop at external boundaries (API calls, database operations) regardless of this value.
+- description: (required) A clear description of what this code flow represents. Describe the overall behavior or feature being traced.
+- entry_point: (required) The starting point of the flow. Format: 'filePath:symbolName' or just 'filePath'. This is where the user interaction or execution begins.
+- steps: (required) Array of step objects as JSON. REQUIRED fields: label, type, filePath, description, inputs, outputs. OPTIONAL: lineNumber, connectionTo. Types: ui_element, component, function, api, hook, service, utility, database, external, entry, state, event. For "connectionTo", describe how this connects to the next step: {type: "function_call"|"event"|"http"|"callback"|"return"|"render"|"state_update", data: "what is passed"}. NOTE: Do NOT include codeSegment in the JSON - use the code_segments parameter instead.
+- code_segments: (required) Code snippets for each step, separated by "---STEP---". Use markdown code fences with language identifier (e.g., ```typescript, ```python, ```html). Provide one code segment for each step in the same order as the steps array. Format: ```language\ncode\n```
 Usage:
 <trace_code_flow>
-<entry_point>src/components/LoginButton.tsx:handleClick</entry_point>
-<description>What happens when the user clicks the login button</description>
-<max_depth>8</max_depth>
+<description>User creates a todo when clicking the Create ToDo button</description>
+<entry_point>html/index.html:Create ToDo Button</entry_point>
+<steps>[{"label":"Create Button","type":"entry","filePath":"html/index.html","lineNumber":12,"description":"User clicks create button to add new todo","inputs":"User mouse click","outputs":"Click event fires","connectionTo":{"type":"event","data":"Mouse click event triggers create function"}},{"label":"create","type":"function","filePath":"main.js","lineNumber":45,"description":"Creates new todo item and adds to list","inputs":"No parameters","outputs":"New todo object {text, id, completed}","connectionTo":{"type":"function_call","data":"Todo object passed to addTodo"}}]</steps>
+<code_segments>```html
+<button onclick="create()">Create ToDo</button>
+```
+---STEP---
+```javascript
+function create() {
+  const todo = {
+    text: input.value,
+    id: Date.now(),
+    completed: false
+  };
+  addTodo(todo);
+}
+```</code_segments>
 </trace_code_flow>
 
 # Tool Use Examples

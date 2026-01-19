@@ -24,59 +24,40 @@ export interface CodeFlowDiagram {
 }
 
 /**
- * Types of nodes in the flow diagram
+ * Types of entities in the data flow diagram
  */
 export type NodeType =
+	| "user" // User entity (initiates interaction)
+	| "ui_element" // UI element (button, input, etc.)
 	| "component" // React/Vue/Svelte component
-	| "function" // Regular function
-	| "api" // API endpoint/route
-	| "database" // Database operation
-	| "external" // External service/API call
-	| "entry" // Entry point of the trace
-	| "hook" // React hook or similar
-	| "service" // Service class/module
-	| "utility" // Utility/helper function
-	| "state" // State management (Redux, Context, etc.)
-	| "event" // Event handler
+	| "method" // Class method or function
+	| "api_endpoint" // API endpoint/route
+	| "database" // Database
+	| "external_service" // External service/API (not in codebase)
+	| "event_handler" // Event handler
+	| "state_manager" // State management (Redux, Context, etc.)
 
 /**
- * A node in the flow diagram representing a component, function, or external dependency
+ * A node in the flow diagram representing an entity in the system
  */
 export interface FlowNode {
 	/** Unique identifier for this node */
 	id: string
 
-	/** Type of node determines styling and icon */
+	/** Type of entity determines styling and icon */
 	type: NodeType
 
-	/** Display name (e.g., "LoginButton", "handleSubmit", "POST /api/auth") */
+	/** Short descriptor (e.g., "AuthService.login()", "User", "POST /api/auth", "users_db") */
 	label: string
 
-	/** Relative path to the file containing this code */
-	filePath: string
+	/** Path to the file containing this entity's code (omit for external entities like databases, APIs) */
+	filePath?: string
 
-	/** Line number where this code is located (optional) */
+	/** Line number where this entity's code begins (for VSCode deep linking) */
 	lineNumber?: number
 
-	// Six pieces of information displayed in the detail modal
-
-	/** What is the responsibility of this component/function? */
-	componentResponsibility: string
-
-	/** What data flows into this node? (params, props, state) */
-	inputDescription: string
-
-	/** What data flows out of this node? (return values, side effects) */
-	outputDescription: string
-
-	/** What is the purpose of the file containing this code? */
-	fileResponsibility: string
-
-	/** Explanation of what the relevant code segment does */
-	codeSegmentDescription: string
-
-	/** The actual code snippet (for display and linking) */
-	codeSegment: string
+	/** Purpose of this entity in the larger system */
+	entityPurpose: string
 
 	/** Visual positioning for the diagram (auto-calculated or manual) */
 	position?: { x: number; y: number }
@@ -86,23 +67,38 @@ export interface FlowNode {
 }
 
 /**
- * An edge connecting two nodes, representing data/control flow
+ * An edge connecting two entities, representing data flow
  */
 export interface FlowEdge {
 	/** Unique identifier for this edge */
 	id: string
 
-	/** ID of the source node */
+	/** ID of the source entity */
 	source: string
 
-	/** ID of the target node */
+	/** ID of the target entity */
 	target: string
 
-	/** Optional label describing the relationship (e.g., "onClick", "fetch", "returns") */
-	label?: string
+	/** Short trigger descriptor (e.g., "function call", "HTTP POST", "click event") */
+	label: string
 
-	/** Type of flow this edge represents */
+	/** Type of flow for visual styling */
 	type?: "dataflow" | "call" | "render" | "event"
+
+	/** Detailed information about this data flow */
+	metadata: {
+		/** What triggers this data flow */
+		trigger: string
+
+		/** Description of what data flows between entities */
+		dataDescription: string
+
+		/** Format of the data (e.g., "JSON", "Event object", "HTTP request", "Function parameters") */
+		dataFormat: string
+
+		/** Sample/example data showing structure and fields - REQUIRED */
+		sampleData: string
+	}
 }
 
 /**

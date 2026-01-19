@@ -59,6 +59,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	showAnnouncement: boolean
 	showChatModelSelector: boolean
 	expandTaskHeader: boolean
+	showVisualization: boolean
+	currentDiagramId?: string
 
 	// Setters
 	setDictationSettings: (value: DictationSettings) => void
@@ -104,6 +106,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	navigateToHistory: () => void
 	navigateToAccount: () => void
 	navigateToChat: () => void
+	navigateToVisualization: (diagramId: string) => void
 
 	// Hide functions
 	hideSettings: () => void
@@ -111,6 +114,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	hideAccount: () => void
 	hideAnnouncement: () => void
 	hideChatModelSelector: () => void
+	hideVisualization: () => void
 	closeMcpView: () => void
 
 	// Event callbacks
@@ -131,6 +135,8 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showAccount, setShowAccount] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 	const [showChatModelSelector, setShowChatModelSelector] = useState(false)
+	const [showVisualization, setShowVisualization] = useState(false)
+	const [currentDiagramId, setCurrentDiagramId] = useState<string | undefined>(undefined)
 
 	// Helper for MCP view
 	const closeMcpView = useCallback(() => {
@@ -147,6 +153,10 @@ export const ExtensionStateContextProvider: React.FC<{
 	const hideAccount = useCallback(() => setShowAccount(false), [setShowAccount])
 	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [setShowAnnouncement])
 	const hideChatModelSelector = useCallback(() => setShowChatModelSelector(false), [setShowChatModelSelector])
+	const hideVisualization = useCallback(() => {
+		setShowVisualization(false)
+		setCurrentDiagramId(undefined)
+	}, [])
 
 	// Navigation functions
 	const navigateToMcp = useCallback(
@@ -193,6 +203,18 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowHistory(false)
 		setShowAccount(false)
 	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount])
+
+	const navigateToVisualization = useCallback(
+		(diagramId: string) => {
+			setShowSettings(false)
+			closeMcpView()
+			setShowHistory(false)
+			setShowAccount(false)
+			setCurrentDiagramId(diagramId)
+			setShowVisualization(true)
+		},
+		[closeMcpView],
+	)
 
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
@@ -736,6 +758,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		showAccount,
 		showAnnouncement,
 		showChatModelSelector,
+		showVisualization,
+		currentDiagramId,
 		globalClineRulesToggles: state.globalClineRulesToggles || {},
 		localClineRulesToggles: state.localClineRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
@@ -754,12 +778,14 @@ export const ExtensionStateContextProvider: React.FC<{
 		navigateToHistory,
 		navigateToAccount,
 		navigateToChat,
+		navigateToVisualization,
 
 		// Hide functions
 		hideSettings,
 		hideHistory,
 		hideAccount,
 		hideAnnouncement,
+		hideVisualization,
 		setShowAnnouncement,
 		hideChatModelSelector,
 		setShowWelcome,
