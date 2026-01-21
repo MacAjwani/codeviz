@@ -42,7 +42,8 @@
 	"activationEvents": [
 		"onLanguage",
 		"onStartupFinished",
-		"workspaceContains:evals.env"
+		"workspaceContains:evals.env",
+		"onView:claude-dev.SidebarProvider"
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
@@ -110,14 +111,14 @@
 		"viewsContainers": {
 			"activitybar": [
 				{
-					"id": "claude-dev-ActivityBar",
+					"id": "claude-dev-activitybar",
 					"title": "Cline",
 					"icon": "assets/icons/icon.svg"
 				}
 			]
 		},
 		"views": {
-			"claude-dev-ActivityBar": [
+			"claude-dev-activitybar": [
 				{
 					"type": "webview",
 					"id": "claude-dev.SidebarProvider",
