@@ -21,6 +21,22 @@ export interface CodeFlowDiagram {
 
 	/** Metadata about the diagram */
 	metadata: DiagramMetadata
+
+	/** Intuitive summary of the user journey - high-level, non-technical */
+	simpleDescription: string
+
+	/** Rigorous technical audit of how code fulfills system requirements */
+	detailedAnalysis: DetailedAnalysisItem[]
+}
+
+/**
+ * Detailed analysis item for technical audit
+ */
+export interface DetailedAnalysisItem {
+	/** Requirement name being fulfilled */
+	title: string
+	/** Detailed explanation of implementation and code trace */
+	details: string
 }
 
 /**
@@ -47,22 +63,31 @@ export interface FlowNode {
 	/** Type of entity determines styling and icon */
 	type: NodeType
 
-	/** Short descriptor (e.g., "AuthService.login()", "User", "POST /api/auth", "users_db") */
+	/** Short functional descriptor (e.g., "Auth: Sign In", "Data: Store User") */
 	label: string
 
-	/** Path to the file containing this entity's code (omit for external entities like databases, APIs) */
+	/** Original code identifier for developers */
+	codeName?: string
+
+	/** Architectural group for layout organization */
+	group?: "client" | "server" | "data"
+
+	/** Path to the file containing this entity's code */
 	filePath?: string
 
-	/** Line number where this entity's code begins (for VSCode deep linking) */
+	/** Line number where this entity's code begins */
 	lineNumber?: number
 
 	/** Purpose of this entity in the larger system */
 	entityPurpose: string
 
-	/** Visual positioning for the diagram (auto-calculated or manual) */
+	/** Detailed requirements/functionality points this code fulfills */
+	detailedRequirements?: string[]
+
+	/** Visual positioning for the diagram */
 	position?: { x: number; y: number }
 
-	/** Additional metadata specific to this node */
+	/** Additional metadata */
 	metadata?: Record<string, any>
 }
 

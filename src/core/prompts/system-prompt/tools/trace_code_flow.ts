@@ -10,34 +10,47 @@ const GENERIC: ClineToolSpec = {
 	id,
 	name: "trace_code_flow",
 	description:
-		"Create an entity-relationship data flow diagram. Identify all entities (specific methods/functions, UI elements, databases, APIs, etc.) involved in a flow and how data moves between them. The diagram shows what communicates with what, not step-by-step execution. IMPORTANT: Use high granularity - identify SPECIFIC functions (e.g., 'AuthService.login()' not 'AuthService'), SPECIFIC event handlers (e.g., 'LoginButton.onClick' not 'LoginButton'), and SPECIFIC API endpoints.",
+		"Create a simplified architectural data flow diagram. Prioritize CLARITY over COMPLETENESS.\n\nRULES:\n1. UNIDIRECTIONAL FLOW ONLY: Never generate return/response edges. The graph flows top-to-bottom.\n2. FUNCTIONAL LABELS: Use 'Category: Action' format (e.g., 'Auth: Sign In', 'Data: Store User').\n3. FILTER NOISE: Merge utility functions (crud.*, utils.*, helper.*) into their parent nodes.\n4. GROUP NODES: Assign every node a 'group' (client/server/data) for architectural organization.\n5. LIMIT: Maximum 8 nodes per diagram. Focus on the big picture.",
 	parameters: [
 		{
 			name: "description",
 			required: true,
 			instruction: "Brief description of what this data flow diagram represents.",
-			usage: "User authentication flow from login button to session storage",
+			usage: "User authentication flow",
+		},
+		{
+			name: "simpleDescription",
+			required: false,
+			instruction:
+				'A concise, non-technical narrative of the user journey. Focus on WHAT is happening, not how.\nExample: "User logs in, Dashboard requests data, Database returns records."',
+			usage: "User logs in, Dashboard requests data, Database returns records.",
+		},
+		{
+			name: "detailedAnalysis",
+			required: false,
+			instruction:
+				'JSON array of technical requirements being fulfilled.\n\nREQUIRED FIELDS:\n- "title" (string): The architectural goal (e.g., "Network Abstraction", "Identity Management")\n- "details" (string): Detailed explanation of implementation and code trace, citing specific files/functions.',
+			usage: '[{"title":"Network Abstraction","details":"HttpDataService acts as an anticorruption layer..."}]',
 		},
 		{
 			name: "entry_point",
 			required: true,
-			instruction:
-				"The starting entity for this flow. Use 'User' for user-initiated flows, or name the first entity that triggers the flow.",
-			usage: "User",
+			instruction: "The starting point, described functionally. Use 'User Action' for user-initiated flows.",
+			usage: "User: Click Login",
 		},
 		{
 			name: "entities",
 			required: true,
 			instruction:
-				'JSON array of entity objects. Each entity MUST have these exact fields:\n\nREQUIRED FIELDS:\n- "label" (string): Specific entity name. Use high granularity - GOOD: "UserModel.validateEmail()", BAD: "UserModel". GOOD: "submitButton.onClick", BAD: "submitButton".\n- "type" (string): Must be one of: "user", "ui_element", "component", "method", "api_endpoint", "database", "external_service", "event_handler", "state_manager"\n- "entityPurpose" (string): What this entity does in the system (1-2 sentences)\n\nOPTIONAL FIELDS (only for entities with code in the codebase):\n- "filePath" (string): Relative path to file (e.g., "src/services/AuthService.ts")\n- "lineNumber" (number): Line where this entity is defined\n\nEXTERNAL ENTITIES: Omit filePath/lineNumber for external services, databases, APIs not in your codebase.\n\nGRANULARITY RULES:\n- Methods: Include class/object name (e.g., "AuthService.login()", "validatePassword()")\n- UI Elements: Include specific element and event (e.g., "loginButton.onClick", "emailInput.onBlur")\n- Components: Use component name (e.g., "LoginForm", "UserAvatar")\n- API Endpoints: Include HTTP method and path (e.g., "POST /api/auth/login")\n- Databases: Use table name or database name (e.g., "users_table", "redis_cache")',
-			usage: '[{"label":"User","type":"user","entityPurpose":"Person using the application"},{"label":"loginButton.onClick","type":"event_handler","filePath":"src/components/LoginForm.tsx","lineNumber":23,"entityPurpose":"Event handler that fires when user clicks login button"},{"label":"AuthService.login()","type":"method","filePath":"src/services/AuthService.ts","lineNumber":45,"entityPurpose":"Validates user credentials and initiates session creation"},{"label":"POST /api/auth/login","type":"api_endpoint","filePath":"src/api/routes/auth.ts","lineNumber":12,"entityPurpose":"Backend REST endpoint that authenticates users"},{"label":"users_table","type":"database","entityPurpose":"PostgreSQL table storing user credentials and profile data"}]',
+				'JSON array of entity objects representing architectural components.\n\nREQUIRED FIELDS:\n- "label" (string): FUNCTIONAL description using "Category: Action" format.\n  GOOD: "Auth: Validate Credentials", "Data: Store Session", "UI: Show Error"\n  BAD: "AuthService.validateCredentials()", "handleSubmit", "POST /api/auth"\n- "type" (string): One of: "user", "ui_element", "component", "method", "api_endpoint", "database", "external_service", "event_handler", "state_manager"\n- "group" (string): REQUIRED. One of: "client", "server", "data"\n  - client: UI components, hooks, event handlers, state managers\n  - server: API endpoints, controllers, backend services\n  - data: Databases, external services, caches\n- "entityPurpose" (string): Clear, intuitive 1-2 sentence purpose of this entity\n- "detailedRequirements" (string[]): REQUIRED array of bulleted requirements this code fulfills. Each string is one requirement. Be SPECIFIC but not overly technical. Think of code as requirements.\n  Example: ["Validates email format before submission", "Displays inline error messages for invalid fields", "Disables submit button while request is pending"]\n\nOPTIONAL FIELDS:\n- "codeName" (string): Original code identifier for developers\n- "filePath" (string): Path to file (enables clickable link to code)\n- "lineNumber" (number): Line number (enables jumping to exact location)\n\nFILTER RULES:\n- Merge crud.*, utils.*, helper.* functions into their calling parent\n- Maximum 8 nodes per diagram\n- Focus on KEY architectural boundaries, not every function call',
+			usage: '[{"label":"User: Click Login","type":"user","group":"client","entityPurpose":"User initiates the login process","detailedRequirements":["Triggers authentication flow","Provides credentials via form"]},{"label":"UI: Collect Credentials","type":"component","group":"client","codeName":"LoginForm","filePath":"src/components/LoginForm.tsx","lineNumber":15,"entityPurpose":"Captures and validates user input","detailedRequirements":["Renders email and password input fields","Validates email format on blur","Shows validation errors inline","Disables submit while loading"]},{"label":"Auth: Validate User","type":"api_endpoint","group":"server","codeName":"POST /api/auth/login","filePath":"src/api/auth.ts","lineNumber":42,"entityPurpose":"Verifies credentials against stored data","detailedRequirements":["Accepts email/password in request body","Queries database for matching user","Compares hashed passwords","Returns JWT token on success","Returns 401 on failure"]},{"label":"Data: User Store","type":"database","group":"data","entityPurpose":"Persistent storage for user accounts","detailedRequirements":["Stores user email and hashed password","Indexes users by email for fast lookup"]}]',
 		},
 		{
 			name: "flows",
 			required: true,
 			instruction:
-				'JSON array of flow objects describing data movement. Each flow MUST have these exact fields:\n\nREQUIRED FIELDS:\n- "fromEntity" (string): Label of source entity (must exactly match an entity label)\n- "toEntity" (string): Label of target entity (must exactly match an entity label)\n- "trigger" (string): What causes this flow (e.g., "click event", "function call", "HTTP request")\n- "dataDescription" (string): What data flows between entities (be specific)\n- "dataFormat" (string): Format of the data (e.g., "JSON", "DOM Event", "JavaScript object", "HTTP POST body", "Custom Event")\n- "sampleData" (string): Example showing the STRUCTURE of the data with field names. REQUIRED - show what fields/properties exist.\n\nSAMPLE DATA RULES:\n- Show field names and example values\n- Use realistic field names from the code\n- For objects: show structure like \'{ username: "user@example.com", password: "***" }\'\n- For events: show relevant properties like \'MouseEvent { type: "click", target: <button> }\'\n- For arrays: show item structure like \'[{ id: 1, name: "Item" }]\'\n- Keep it concise but informative about data structure',
-			usage: '[{"fromEntity":"User","toEntity":"loginButton.onClick","trigger":"mouse click","dataDescription":"User mouse click on login button","dataFormat":"DOM MouseEvent","sampleData":"MouseEvent { type: \'click\', clientX: 245, clientY: 132, target: <button> }"},{"fromEntity":"loginButton.onClick","toEntity":"AuthService.login()","trigger":"function call","dataDescription":"Username and password collected from form inputs","dataFormat":"JavaScript object","sampleData":"{ username: \'john@example.com\', password: \'hashed_pw_123\', rememberMe: true }"},{"fromEntity":"AuthService.login()","toEntity":"POST /api/auth/login","trigger":"HTTP POST request","dataDescription":"User credentials sent to backend for validation","dataFormat":"JSON HTTP POST body","sampleData":"{ \'username\': \'john@example.com\', \'password\': \'hashed_pw_123\', \'clientId\': \'web-app\' }"},{"fromEntity":"POST /api/auth/login","toEntity":"users_table","trigger":"SQL query","dataDescription":"Query to verify user credentials exist in database","dataFormat":"SQL SELECT statement","sampleData":"SELECT id, password_hash, email FROM users WHERE username = \'john@example.com\'"}]',
+				'JSON array describing UNIDIRECTIONAL data movement. NO RETURN EDGES.\n\nREQUIRED FIELDS:\n- "fromEntity" (string): Label of source entity (must match)\n- "toEntity" (string): Label of target entity (must match)\n- "trigger" (string): What causes this flow\n- "dataDescription" (string): Plain English description of data passed\n- "dataFormat" (string): General format\n- "sampleData" (string): Example structure\n\nCRITICAL RULES:\n- NEVER create "return", "response", or "callback" edges\n- Flow is ALWAYS from client → server → data (or variations)\n- If A calls B and B returns to A, only show A→B edge\n- Describe what data GOES TO the target, not what comes back',
+			usage: '[{"fromEntity":"User: Click Login","toEntity":"UI: Collect Credentials","trigger":"button click","dataDescription":"User interaction triggers form submission","dataFormat":"DOM event","sampleData":"click on login button"},{"fromEntity":"UI: Collect Credentials","toEntity":"Auth: Validate User","trigger":"form submit","dataDescription":"Email and password for authentication","dataFormat":"JSON request","sampleData":"{ email, password }"},{"fromEntity":"Auth: Validate User","toEntity":"Data: User Store","trigger":"database query","dataDescription":"Lookup user by email","dataFormat":"SQL query","sampleData":"SELECT * FROM users WHERE email=?"}]',
 		},
 		TASK_PROGRESS_PARAMETER,
 	],
@@ -47,7 +60,7 @@ const NEXT_GEN: ClineToolSpec = {
 	...GENERIC,
 	variant: ModelFamily.NEXT_GEN,
 	description:
-		"Create an entity-relationship data flow diagram showing how data moves through a system. First, trace the requested flow to identify: (1) All SPECIFIC entities involved (e.g., SPECIFIC functions like 'UserModel.save()', SPECIFIC event handlers like 'submitButton.onClick', NOT broad entities like 'UserModel' or 'submitButton'). Entities are 'things' that exist: User, UI elements, methods, API endpoints, databases, external services. (2) How data flows between entities - what triggers each flow, what data is passed, in what format, and ALWAYS include sampleData showing the structure/fields. Then call this tool with the entities and flows to generate a visual diagram. Focus on WHAT communicates with WHAT using high granularity.",
+		"Create a simplified architectural data flow diagram. Focus on CLARITY over COMPLETENESS.\n\nKEY RULES:\n1. UNIDIRECTIONAL ONLY: No return/response edges. Flow goes top→bottom.\n2. FUNCTIONAL LABELS: 'Category: Action' format (e.g., 'Auth: Sign In').\n3. GROUP ALL NODES: Assign 'client', 'server', or 'data' to every node.\n4. FILTER NOISE: Merge utilities into parents. Max 8 nodes.\n5. DESCRIBE FUNCTIONALITY: Labels explain WHAT happens, not code names.",
 }
 
 const NATIVE_GPT_5: ClineToolSpec = {

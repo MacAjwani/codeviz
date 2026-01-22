@@ -196,6 +196,8 @@ export class CodeTracingService {
 		return {
 			entryPoint,
 			description,
+			simpleDescription: description, // Default to description for now if not provided
+			detailedAnalysis: [],
 			nodes: [],
 			edges: [],
 			metadata: {

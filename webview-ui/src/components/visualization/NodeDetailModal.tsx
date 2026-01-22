@@ -1,5 +1,5 @@
 import type { FlowNode } from "@shared/code-visualization/types"
-import { ExternalLinkIcon, FileCodeIcon, InfoIcon, XIcon } from "lucide-react"
+import { ExternalLinkIcon, FileCodeIcon, InfoIcon, ListChecksIcon, XIcon } from "lucide-react"
 import { memo } from "react"
 import { cn } from "@/lib/utils"
 
@@ -39,7 +39,7 @@ function NodeDetailModalComponent({ node, onClose, onOpenFile }: NodeDetailModal
 
 				{/* Content */}
 				<div className="overflow-y-auto flex-1 p-4 space-y-4">
-					{/* Entity Purpose */}
+					{/* Purpose in System */}
 					<div className="space-y-2">
 						<div className="flex items-center gap-2 text-sm font-medium text-description">
 							<InfoIcon className="w-4 h-4" />
@@ -48,7 +48,24 @@ function NodeDetailModalComponent({ node, onClose, onOpenFile }: NodeDetailModal
 						<p className="text-sm pl-6">{node.entityPurpose}</p>
 					</div>
 
-					{/* File Location - Only show if entity has code in codebase */}
+					{/* Detailed Requirements */}
+					{node.detailedRequirements && node.detailedRequirements.length > 0 && (
+						<div className="space-y-2">
+							<div className="flex items-center gap-2 text-sm font-medium text-description">
+								<ListChecksIcon className="w-4 h-4" />
+								<span>Detailed Description</span>
+							</div>
+							<ul className="text-sm pl-6 space-y-1 list-disc list-inside">
+								{node.detailedRequirements.map((req, i) => (
+									<li className="text-foreground" key={i}>
+										{req}
+									</li>
+								))}
+							</ul>
+						</div>
+					)}
+
+					{/* Code Location - Clickable link */}
 					{node.filePath && (
 						<div className="space-y-2">
 							<div className="flex items-center gap-2 text-sm font-medium text-description">
