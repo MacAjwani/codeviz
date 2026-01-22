@@ -21,6 +21,22 @@ export interface CodeFlowDiagram {
 
 	/** Metadata about the diagram */
 	metadata: DiagramMetadata
+
+	/** Intuitive summary of the user journey - high-level, non-technical */
+	simpleDescription: string
+
+	/** Rigorous technical audit of how code fulfills system requirements */
+	detailedAnalysis: DetailedAnalysisItem[]
+}
+
+/**
+ * Detailed analysis item for technical audit
+ */
+export interface DetailedAnalysisItem {
+	/** Requirement name being fulfilled */
+	title: string
+	/** Detailed explanation of implementation and code trace */
+	details: string
 }
 
 /**
@@ -64,6 +80,9 @@ export interface FlowNode {
 
 	/** Purpose of this entity in the larger system */
 	entityPurpose: string
+
+	/** Detailed requirements/functionality points this code fulfills */
+	detailedRequirements?: string[]
 
 	/** Visual positioning for the diagram */
 	position?: { x: number; y: number }

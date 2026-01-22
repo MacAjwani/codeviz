@@ -19,6 +19,20 @@ const GENERIC: ClineToolSpec = {
 			usage: "User authentication flow",
 		},
 		{
+			name: "simpleDescription",
+			required: false,
+			instruction:
+				'A concise, non-technical narrative of the user journey. Focus on WHAT is happening, not how.\nExample: "User logs in, Dashboard requests data, Database returns records."',
+			usage: "User logs in, Dashboard requests data, Database returns records.",
+		},
+		{
+			name: "detailedAnalysis",
+			required: false,
+			instruction:
+				'JSON array of technical requirements being fulfilled.\n\nREQUIRED FIELDS:\n- "title" (string): The architectural goal (e.g., "Network Abstraction", "Identity Management")\n- "details" (string): Detailed explanation of implementation and code trace, citing specific files/functions.',
+			usage: '[{"title":"Network Abstraction","details":"HttpDataService acts as an anticorruption layer..."}]',
+		},
+		{
 			name: "entry_point",
 			required: true,
 			instruction: "The starting point, described functionally. Use 'User Action' for user-initiated flows.",
@@ -28,8 +42,8 @@ const GENERIC: ClineToolSpec = {
 			name: "entities",
 			required: true,
 			instruction:
-				'JSON array of entity objects representing architectural components.\n\nREQUIRED FIELDS:\n- "label" (string): FUNCTIONAL description using "Category: Action" format.\n  GOOD: "Auth: Validate Credentials", "Data: Store Session", "UI: Show Error"\n  BAD: "AuthService.validateCredentials()", "handleSubmit", "POST /api/auth"\n- "type" (string): One of: "user", "ui_element", "component", "method", "api_endpoint", "database", "external_service", "event_handler", "state_manager"\n- "group" (string): REQUIRED. One of: "client", "server", "data"\n  - client: UI components, hooks, event handlers, state managers\n  - server: API endpoints, controllers, backend services\n  - data: Databases, external services, caches\n- "entityPurpose" (string): What this step accomplishes (1-2 sentences)\n\nOPTIONAL FIELDS:\n- "codeName" (string): Original code identifier for developers\n- "filePath" (string): Path to file\n- "lineNumber" (number): Line number\n\nFILTER RULES:\n- Merge crud.*, utils.*, helper.* functions into their calling parent\n- Maximum 8 nodes per diagram\n- Focus on KEY architectural boundaries, not every function call',
-			usage: '[{"label":"User: Click Login","type":"user","group":"client","entityPurpose":"User initiates the login process"},{"label":"UI: Collect Credentials","type":"component","group":"client","codeName":"LoginForm","entityPurpose":"Captures and validates user input"},{"label":"Auth: Validate User","type":"api_endpoint","group":"server","codeName":"POST /api/auth/login","entityPurpose":"Verifies credentials against stored data"},{"label":"Data: User Store","type":"database","group":"data","entityPurpose":"Persistent storage for user accounts"}]',
+				'JSON array of entity objects representing architectural components.\n\nREQUIRED FIELDS:\n- "label" (string): FUNCTIONAL description using "Category: Action" format.\n  GOOD: "Auth: Validate Credentials", "Data: Store Session", "UI: Show Error"\n  BAD: "AuthService.validateCredentials()", "handleSubmit", "POST /api/auth"\n- "type" (string): One of: "user", "ui_element", "component", "method", "api_endpoint", "database", "external_service", "event_handler", "state_manager"\n- "group" (string): REQUIRED. One of: "client", "server", "data"\n  - client: UI components, hooks, event handlers, state managers\n  - server: API endpoints, controllers, backend services\n  - data: Databases, external services, caches\n- "entityPurpose" (string): Clear, intuitive 1-2 sentence purpose of this entity\n- "detailedRequirements" (string[]): REQUIRED array of bulleted requirements this code fulfills. Each string is one requirement. Be SPECIFIC but not overly technical. Think of code as requirements.\n  Example: ["Validates email format before submission", "Displays inline error messages for invalid fields", "Disables submit button while request is pending"]\n\nOPTIONAL FIELDS:\n- "codeName" (string): Original code identifier for developers\n- "filePath" (string): Path to file (enables clickable link to code)\n- "lineNumber" (number): Line number (enables jumping to exact location)\n\nFILTER RULES:\n- Merge crud.*, utils.*, helper.* functions into their calling parent\n- Maximum 8 nodes per diagram\n- Focus on KEY architectural boundaries, not every function call',
+			usage: '[{"label":"User: Click Login","type":"user","group":"client","entityPurpose":"User initiates the login process","detailedRequirements":["Triggers authentication flow","Provides credentials via form"]},{"label":"UI: Collect Credentials","type":"component","group":"client","codeName":"LoginForm","filePath":"src/components/LoginForm.tsx","lineNumber":15,"entityPurpose":"Captures and validates user input","detailedRequirements":["Renders email and password input fields","Validates email format on blur","Shows validation errors inline","Disables submit while loading"]},{"label":"Auth: Validate User","type":"api_endpoint","group":"server","codeName":"POST /api/auth/login","filePath":"src/api/auth.ts","lineNumber":42,"entityPurpose":"Verifies credentials against stored data","detailedRequirements":["Accepts email/password in request body","Queries database for matching user","Compares hashed passwords","Returns JWT token on success","Returns 401 on failure"]},{"label":"Data: User Store","type":"database","group":"data","entityPurpose":"Persistent storage for user accounts","detailedRequirements":["Stores user email and hashed password","Indexes users by email for fast lookup"]}]',
 		},
 		{
 			name: "flows",

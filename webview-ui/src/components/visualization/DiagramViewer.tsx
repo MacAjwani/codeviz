@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import "@xyflow/react/dist/style.css"
 import dagre from "@dagrejs/dagre"
 import type { CodeFlowDiagram, FlowEdge, FlowNode as FlowNodeType } from "@shared/code-visualization/types"
-import { DownloadIcon } from "lucide-react"
+import { ChevronDown, ChevronRight, DownloadIcon } from "lucide-react"
 import { EdgeDetailModal } from "./EdgeDetailModal"
 import { FlowNode, type FlowNodeData } from "./FlowNode"
 import { GroupedFlowNode, type GroupedFlowNodeData } from "./GroupedFlowNode"
@@ -148,6 +148,7 @@ export function DiagramViewer({ diagram, onOpenFile, onSaveDiagram }: DiagramVie
 	const [selectedNode, setSelectedNode] = useState<FlowNodeType | null>(null)
 	const [selectedEdge, setSelectedEdge] = useState<FlowEdge | null>(null)
 	const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+	const [showDetailedAnalysis, setShowDetailedAnalysis] = useState(false)
 
 	// Group nodes by file
 	const nodeGroups = useMemo(() => groupNodesByFile(diagram.nodes), [diagram.nodes])
@@ -297,7 +298,7 @@ export function DiagramViewer({ diagram, onOpenFile, onSaveDiagram }: DiagramVie
 				source,
 				target,
 				label: edge.label,
-				type: "smoothstep",
+				type: "default", // Bezier curves
 				animated: edge.type === "dataflow",
 				markerEnd: {
 					type: "arrowclosed" as const,
@@ -400,16 +401,47 @@ export function DiagramViewer({ diagram, onOpenFile, onSaveDiagram }: DiagramVie
 				/>
 
 				{/* Info Panel */}
-				<Panel className="bg-editor-background/90 border border-editor-group-border rounded-lg p-3" position="top-left">
-					<div className="text-sm space-y-1">
-						<div className="font-medium">{diagram.description}</div>
-						<div className="text-description text-xs">Entry: {diagram.entryPoint}</div>
-						<div className="text-description text-xs">
-							{nodes.length} nodes, {edges.length} edges
-							{filteredReturnEdgeCount > 0 && (
-								<span className="text-gray-500"> ({filteredReturnEdgeCount} return edges filtered)</span>
+				<Panel
+					className="bg-editor-background/90 border border-editor-group-border rounded-lg p-3 max-w-[400px]"
+					position="top-left">
+					<div className="text-sm space-y-2">
+						<div>
+							<div className="font-medium">{diagram.description}</div>
+							{diagram.simpleDescription && diagram.simpleDescription !== diagram.description && (
+								<div className="text-description mt-1 text-xs italic">{diagram.simpleDescription}</div>
 							)}
 						</div>
+
+						<div className="text-description text-xs">
+							entry: {diagram.entryPoint} • {nodes.length} nodes • {edges.length} edges
+							{filteredReturnEdgeCount > 0 && <span> ({filteredReturnEdgeCount} filtered)</span>}
+						</div>
+
+						{diagram.detailedAnalysis && diagram.detailedAnalysis.length > 0 && (
+							<div className="pt-2 border-t border-editor-group-border">
+								<button
+									className="flex items-center gap-1 text-xs font-medium hover:text-focus-foreground transition-colors w-full text-left"
+									onClick={() => setShowDetailedAnalysis(!showDetailedAnalysis)}>
+									{showDetailedAnalysis ? (
+										<ChevronDown className="w-3 h-3" />
+									) : (
+										<ChevronRight className="w-3 h-3" />
+									)}
+									Technical Analysis
+								</button>
+
+								{showDetailedAnalysis && (
+									<div className="mt-2 space-y-2 max-h-[300px] overflow-y-auto pr-1">
+										{diagram.detailedAnalysis.map((item, i) => (
+											<div className="text-xs" key={i}>
+												<div className="font-medium text-focus-foreground mb-0.5">{item.title}</div>
+												<div className="text-description leading-relaxed">{item.details}</div>
+											</div>
+										))}
+									</div>
+								)}
+							</div>
+						)}
 					</div>
 				</Panel>
 

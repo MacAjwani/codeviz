@@ -19,6 +19,7 @@ interface EntityInput {
 	label: string // Functional descriptor (e.g., "Auth: Sign In")
 	type: NodeType // Entity type
 	entityPurpose: string // Purpose in the larger system
+	detailedRequirements?: string[] // Bulleted list of requirements this code fulfills
 	codeName?: string // Original code identifier for developers
 	group?: "client" | "server" | "data" // Architectural group
 	filePath?: string // Path to code (omit for external entities)
@@ -35,6 +36,14 @@ interface FlowInput {
 	dataDescription: string // What data flows
 	dataFormat: string // Format of the data
 	sampleData: string // Example data showing structure/fields - REQUIRED
+}
+
+/**
+ * Detailed analysis item for technical audit
+ */
+interface DetailedAnalysisInput {
+	title: string
+	details: string
 }
 
 /**
@@ -98,6 +107,8 @@ export class TraceCodeFlowToolHandler implements IFullyManagedTool {
 
 		const description: string | undefined = block.params.description
 		const entryPoint: string | undefined = block.params.entry_point
+		const simpleDescription: string | undefined = (block.params as any).simpleDescription
+		const detailedAnalysisParam: string | string[] | undefined = (block.params as any).detailedAnalysis
 		const entitiesParam: string | string[] | undefined = (block.params as any).entities
 		const flowsParam: string | string[] | undefined = (block.params as any).flows
 
@@ -137,6 +148,8 @@ export class TraceCodeFlowToolHandler implements IFullyManagedTool {
 			return await config.callbacks.sayAndCreateMissingParamError(this.name, "flows")
 		}
 
+		// simpleDescription and detailedAnalysis are optional - use defaults if not provided
+		const effectiveSimpleDescription = simpleDescription || description
 		console.log("[TraceCodeFlow] All required parameters present")
 		config.taskState.consecutiveMistakeCount = 0
 
@@ -265,6 +278,33 @@ export class TraceCodeFlowToolHandler implements IFullyManagedTool {
 			)
 		}
 
+		// Parse detailedAnalysis (optional - defaults to empty array)
+		console.log("[TraceCodeFlow] Parsing detailedAnalysis...")
+		const detailedAnalysis: DetailedAnalysisInput[] = []
+		if (detailedAnalysisParam) {
+			try {
+				const parsed =
+					typeof detailedAnalysisParam === "string" ? JSON.parse(detailedAnalysisParam) : detailedAnalysisParam
+
+				if (Array.isArray(parsed)) {
+					// Validate structure
+					for (let i = 0; i < parsed.length; i++) {
+						const item = parsed[i]
+						if (item.title && item.details) {
+							detailedAnalysis.push(item)
+						}
+					}
+					console.log(`[TraceCodeFlow] Parsed ${detailedAnalysis.length} detailed analysis items successfully`)
+				} else {
+					console.log(`[TraceCodeFlow] detailedAnalysis is not an array, using empty default`)
+				}
+			} catch (error) {
+				console.log(`[TraceCodeFlow] Failed to parse detailedAnalysis, using empty default`)
+			}
+		} else {
+			console.log("[TraceCodeFlow] No detailedAnalysis provided, using empty default")
+		}
+
 		const sharedMessageProps = {
 			tool: "traceCodeFlow",
 			path: "",
@@ -374,7 +414,15 @@ export class TraceCodeFlowToolHandler implements IFullyManagedTool {
 		try {
 			// Build diagram from entities and flows
 			console.log(`[TraceCodeFlow] Building diagram from ${entities.length} entities and ${flows.length} flows...`)
-			const diagram = this.buildDiagramFromEntities(description, entryPoint, entities, flows, config.cwd)
+			const diagram = this.buildDiagramFromEntities(
+				description,
+				effectiveSimpleDescription,
+				detailedAnalysis,
+				entryPoint,
+				entities,
+				flows,
+				config.cwd,
+			)
 			console.log(`[TraceCodeFlow] Diagram built with ${diagram.nodes.length} nodes and ${diagram.edges.length} edges`)
 
 			// Save the diagram
@@ -431,6 +479,8 @@ export class TraceCodeFlowToolHandler implements IFullyManagedTool {
 	 */
 	private buildDiagramFromEntities(
 		description: string,
+		simpleDescription: string,
+		detailedAnalysis: DetailedAnalysisInput[],
 		entryPoint: string,
 		entities: EntityInput[],
 		flows: FlowInput[],
@@ -459,45 +509,70 @@ export class TraceCodeFlowToolHandler implements IFullyManagedTool {
 				filePath: resolvedPath, // Optional - external entities won't have this
 				lineNumber: entity.lineNumber,
 				entityPurpose: entity.entityPurpose,
+				detailedRequirements: entity.detailedRequirements,
 			}
 		})
 
 		// Build edges from flows
 		console.log(`[TraceCodeFlow] Creating edges from ${flows.length} flows...`)
-		const edges: FlowEdge[] = flows.map((flow, index) => {
-			// Find source and target nodes by label
-			const sourceNode = nodes.find((n) => n.label === flow.fromEntity)
-			const targetNode = nodes.find((n) => n.label === flow.toEntity)
+		const edges: FlowEdge[] = flows
+			.map((flow, index) => {
+				// Find source and target nodes by label
+				const sourceNode = nodes.find((n) => n.label === flow.fromEntity)
+				const targetNode = nodes.find((n) => n.label === flow.toEntity)
 
-			if (!sourceNode || !targetNode) {
-				throw new Error(`Flow ${index}: Could not find nodes for "${flow.fromEntity}" -> "${flow.toEntity}"`)
-			}
+				if (!sourceNode || !targetNode) {
+					throw new Error(`Flow ${index}: Could not find nodes for "${flow.fromEntity}" -> "${flow.toEntity}"`)
+				}
 
-			// Determine edge type based on trigger
-			let edgeType: FlowEdge["type"] = "call"
-			const triggerLower = flow.trigger.toLowerCase()
-			if (triggerLower.includes("event") || triggerLower.includes("click")) {
-				edgeType = "event"
-			} else if (triggerLower.includes("render") || triggerLower.includes("display")) {
-				edgeType = "render"
-			} else if (triggerLower.includes("return") || triggerLower.includes("response") || triggerLower.includes("data")) {
-				edgeType = "dataflow"
-			}
+				// Determine edge type based on trigger
+				let edgeType: FlowEdge["type"] = "call"
+				const triggerLower = flow.trigger.toLowerCase()
+				if (triggerLower.includes("event") || triggerLower.includes("click")) {
+					edgeType = "event"
+				} else if (triggerLower.includes("render") || triggerLower.includes("display")) {
+					edgeType = "render"
+				} else if (
+					triggerLower.includes("return") ||
+					triggerLower.includes("response") ||
+					triggerLower.includes("data")
+				) {
+					edgeType = "dataflow"
+				}
 
-			return {
-				id: `${sourceNode.id}->${targetNode.id}-${index}`,
-				source: sourceNode.id,
-				target: targetNode.id,
-				label: flow.trigger,
-				type: edgeType,
-				metadata: {
-					trigger: flow.trigger,
-					dataDescription: flow.dataDescription,
-					dataFormat: flow.dataFormat,
-					sampleData: flow.sampleData,
-				},
-			}
-		})
+				return {
+					id: `${sourceNode.id}->${targetNode.id}-${index}`,
+					source: sourceNode.id,
+					target: targetNode.id,
+					label: flow.trigger,
+					type: edgeType,
+					metadata: {
+						trigger: flow.trigger,
+						dataDescription: flow.dataDescription,
+						dataFormat: flow.dataFormat,
+						sampleData: flow.sampleData,
+					},
+				}
+			})
+			.filter((edge) => {
+				// Filter out return/response edges for unidirectional flow
+				// Edges with "dataflow" type often represent returns/responses in the current model
+				// But check triggers specifically as requested
+				const triggerLower = edge.metadata.trigger.toLowerCase()
+				const isReturn =
+					triggerLower.includes("return") ||
+					triggerLower.includes("response") ||
+					triggerLower.includes("result") ||
+					triggerLower.includes("callback") ||
+					triggerLower.includes("resolve") ||
+					triggerLower.includes("reply")
+
+				if (isReturn) {
+					console.log(`[TraceCodeFlow] Filtering out return edge: ${edge.label}`)
+					return false
+				}
+				return true
+			})
 
 		console.log(`[TraceCodeFlow] Created ${nodes.length} nodes and ${edges.length} edges`)
 
@@ -505,6 +580,8 @@ export class TraceCodeFlowToolHandler implements IFullyManagedTool {
 		const diagram: CodeFlowDiagram = {
 			entryPoint,
 			description,
+			simpleDescription,
+			detailedAnalysis,
 			nodes,
 			edges,
 			metadata: {
