@@ -298,32 +298,61 @@ Usage:
 </load_mcp_documentation>
 
 ## trace_code_flow
-Description: Create an interactive code flow diagram from your traced analysis. After tracing a code flow through the codebase, provide a high-level description and list of steps. The tool will interactively guide you through providing details for each step, then generate a visual diagram.
+Description: Create a simplified architectural data flow diagram. Prioritize CLARITY over COMPLETENESS.
+
+RULES:
+1. UNIDIRECTIONAL FLOW ONLY: Never generate return/response edges. The graph flows top-to-bottom.
+2. FUNCTIONAL LABELS: Use 'Category: Action' format (e.g., 'Auth: Sign In', 'Data: Store User').
+3. FILTER NOISE: Merge utility functions (crud.*, utils.*, helper.*) into their parent nodes.
+4. GROUP NODES: Assign every node a 'group' (client/server/data) for architectural organization.
+5. LIMIT: Maximum 8 nodes per diagram. Focus on the big picture.
 Parameters:
-- description: (required) A clear description of what this code flow represents. Describe the overall behavior or feature being traced.
-- entry_point: (required) The starting point of the flow. Format: 'filePath:symbolName' or just 'filePath'. This is where the user interaction or execution begins.
-- steps: (required) Array of step objects as JSON. REQUIRED fields: label, type, filePath, description, inputs, outputs. OPTIONAL: lineNumber, connectionTo. Types: ui_element, component, function, api, hook, service, utility, database, external, entry, state, event. For "connectionTo", describe how this connects to the next step: {type: "function_call"|"event"|"http"|"callback"|"return"|"render"|"state_update", data: "what is passed"}. NOTE: Do NOT include codeSegment in the JSON - use the code_segments parameter instead.
-- code_segments: (required) Code snippets for each step, separated by "---STEP---". Use markdown code fences with language identifier (e.g., ```typescript, ```python, ```html). Provide one code segment for each step in the same order as the steps array. Format: ```language\ncode\n```
+- description: (required) Brief description of what this data flow diagram represents.
+- entry_point: (required) The starting point, described functionally. Use 'User Action' for user-initiated flows.
+- entities: (required) JSON array of entity objects representing architectural components.
+
+REQUIRED FIELDS:
+- "label" (string): FUNCTIONAL description using "Category: Action" format.
+  GOOD: "Auth: Validate Credentials", "Data: Store Session", "UI: Show Error"
+  BAD: "AuthService.validateCredentials()", "handleSubmit", "POST /api/auth"
+- "type" (string): One of: "user", "ui_element", "component", "method", "api_endpoint", "database", "external_service", "event_handler", "state_manager"
+- "group" (string): REQUIRED. One of: "client", "server", "data"
+  - client: UI components, hooks, event handlers, state managers
+  - server: API endpoints, controllers, backend services
+  - data: Databases, external services, caches
+- "entityPurpose" (string): What this step accomplishes (1-2 sentences)
+
+OPTIONAL FIELDS:
+- "codeName" (string): Original code identifier for developers
+- "filePath" (string): Path to file
+- "lineNumber" (number): Line number
+
+FILTER RULES:
+- Merge crud.*, utils.*, helper.* functions into their calling parent
+- Maximum 8 nodes per diagram
+- Focus on KEY architectural boundaries, not every function call
+- flows: (required) JSON array describing UNIDIRECTIONAL data movement. NO RETURN EDGES.
+
+REQUIRED FIELDS:
+- "fromEntity" (string): Label of source entity (must match)
+- "toEntity" (string): Label of target entity (must match)
+- "trigger" (string): What causes this flow
+- "dataDescription" (string): Plain English description of data passed
+- "dataFormat" (string): General format
+- "sampleData" (string): Example structure
+
+CRITICAL RULES:
+- NEVER create "return", "response", or "callback" edges
+- Flow is ALWAYS from client → server → data (or variations)
+- If A calls B and B returns to A, only show A→B edge
+- Describe what data GOES TO the target, not what comes back
 - task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <trace_code_flow>
-<description>User creates a todo when clicking the Create ToDo button</description>
-<entry_point>html/index.html:Create ToDo Button</entry_point>
-<steps>[{"label":"Create Button","type":"entry","filePath":"html/index.html","lineNumber":12,"description":"User clicks create button to add new todo","inputs":"User mouse click","outputs":"Click event fires","connectionTo":{"type":"event","data":"Mouse click event triggers create function"}},{"label":"create","type":"function","filePath":"main.js","lineNumber":45,"description":"Creates new todo item and adds to list","inputs":"No parameters","outputs":"New todo object {text, id, completed}","connectionTo":{"type":"function_call","data":"Todo object passed to addTodo"}}]</steps>
-<code_segments>```html
-<button onclick="create()">Create ToDo</button>
-```
----STEP---
-```javascript
-function create() {
-  const todo = {
-    text: input.value,
-    id: Date.now(),
-    completed: false
-  };
-  addTodo(todo);
-}
-```</code_segments>
+<description>User authentication flow</description>
+<entry_point>User: Click Login</entry_point>
+<entities>[{"label":"User: Click Login","type":"user","group":"client","entityPurpose":"User initiates the login process"},{"label":"UI: Collect Credentials","type":"component","group":"client","codeName":"LoginForm","entityPurpose":"Captures and validates user input"},{"label":"Auth: Validate User","type":"api_endpoint","group":"server","codeName":"POST /api/auth/login","entityPurpose":"Verifies credentials against stored data"},{"label":"Data: User Store","type":"database","group":"data","entityPurpose":"Persistent storage for user accounts"}]</entities>
+<flows>[{"fromEntity":"User: Click Login","toEntity":"UI: Collect Credentials","trigger":"button click","dataDescription":"User interaction triggers form submission","dataFormat":"DOM event","sampleData":"click on login button"},{"fromEntity":"UI: Collect Credentials","toEntity":"Auth: Validate User","trigger":"form submit","dataDescription":"Email and password for authentication","dataFormat":"JSON request","sampleData":"{ email, password }"},{"fromEntity":"Auth: Validate User","toEntity":"Data: User Store","trigger":"database query","dataDescription":"Lookup user by email","dataFormat":"SQL query","sampleData":"SELECT * FROM users WHERE email=?"}]</flows>
 <task_progress>Checklist here (optional)</task_progress>
 </trace_code_flow>
 

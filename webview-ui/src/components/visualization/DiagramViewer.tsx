@@ -11,23 +11,27 @@ import {
 	useEdgesState,
 	useNodesState,
 } from "@xyflow/react"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import "@xyflow/react/dist/style.css"
 import dagre from "@dagrejs/dagre"
 import type { CodeFlowDiagram, FlowEdge, FlowNode as FlowNodeType } from "@shared/code-visualization/types"
 import { DownloadIcon } from "lucide-react"
 import { EdgeDetailModal } from "./EdgeDetailModal"
 import { FlowNode, type FlowNodeData } from "./FlowNode"
+import { GroupedFlowNode, type GroupedFlowNodeData } from "./GroupedFlowNode"
 import { NodeDetailModal } from "./NodeDetailModal"
 
 // Register custom node types
 const nodeTypes = {
-	flowNode: FlowNode as any, // Type assertion needed for React Flow compatibility
+	flowNode: FlowNode as any,
+	groupedNode: GroupedFlowNode as any,
 }
 
 // Node dimensions for layout calculation
 const NODE_WIDTH = 220
 const NODE_HEIGHT = 80
+const GROUP_NODE_WIDTH = 240
+const GROUP_NODE_HEIGHT = 70
 
 /**
  * Apply automatic hierarchical layout using Dagre
@@ -36,40 +40,102 @@ function getLayoutedNodes(nodes: Node[], edges: Edge[]): Node[] {
 	const dagreGraph = new dagre.graphlib.Graph()
 	dagreGraph.setDefaultEdgeLabel(() => ({}))
 
-	// Configure graph layout
 	dagreGraph.setGraph({
-		rankdir: "TB", // Top-to-bottom layout
-		align: "UL", // Align nodes to upper left
-		nodesep: 80, // Horizontal spacing between nodes
-		ranksep: 120, // Vertical spacing between ranks
+		rankdir: "TB",
+		align: "UL",
+		nodesep: 80,
+		ranksep: 120,
 		marginx: 50,
 		marginy: 50,
 	})
 
-	// Add nodes to graph
 	nodes.forEach((node) => {
-		dagreGraph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
+		const isGroup = node.type === "groupedNode"
+		dagreGraph.setNode(node.id, {
+			width: isGroup ? GROUP_NODE_WIDTH : NODE_WIDTH,
+			height: isGroup ? GROUP_NODE_HEIGHT : NODE_HEIGHT,
+		})
 	})
 
-	// Add edges to graph
 	edges.forEach((edge) => {
 		dagreGraph.setEdge(edge.source, edge.target)
 	})
 
-	// Compute layout
 	dagre.layout(dagreGraph)
 
-	// Apply computed positions to nodes
 	return nodes.map((node) => {
 		const nodeWithPosition = dagreGraph.node(node.id)
+		const isGroup = node.type === "groupedNode"
 		return {
 			...node,
 			position: {
-				x: nodeWithPosition.x - NODE_WIDTH / 2,
-				y: nodeWithPosition.y - NODE_HEIGHT / 2,
+				x: nodeWithPosition.x - (isGroup ? GROUP_NODE_WIDTH : NODE_WIDTH) / 2,
+				y: nodeWithPosition.y - (isGroup ? GROUP_NODE_HEIGHT : NODE_HEIGHT) / 2,
 			},
 		}
 	})
+}
+
+/**
+ * Check if an edge is a "return" or "response" edge that should be filtered
+ */
+function isReturnEdge(edge: FlowEdge): boolean {
+	const returnKeywords = ["return", "response", "result", "callback", "resolve", "reply"]
+	const label = edge.label.toLowerCase()
+	const trigger = edge.metadata?.trigger?.toLowerCase() || ""
+
+	// Check if label or trigger contains return keywords
+	for (const keyword of returnKeywords) {
+		if (label.includes(keyword) || trigger.includes(keyword)) {
+			return true
+		}
+	}
+
+	return false
+}
+
+/**
+ * Group nodes by filePath for progressive disclosure
+ */
+interface NodeGroup {
+	filePath: string
+	fileName: string
+	nodeIds: string[]
+	nodes: FlowNodeType[]
+}
+
+function groupNodesByFile(nodes: FlowNodeType[]): Map<string, NodeGroup> {
+	const groups = new Map<string, NodeGroup>()
+
+	for (const node of nodes) {
+		// Only group method and event_handler nodes that have a filePath
+		if (!node.filePath || (node.type !== "method" && node.type !== "event_handler")) {
+			continue
+		}
+
+		if (!groups.has(node.filePath)) {
+			const fileName = node.filePath.split("/").pop() || node.filePath
+			groups.set(node.filePath, {
+				filePath: node.filePath,
+				fileName,
+				nodeIds: [],
+				nodes: [],
+			})
+		}
+
+		const group = groups.get(node.filePath)!
+		group.nodeIds.push(node.id)
+		group.nodes.push(node)
+	}
+
+	// Only keep groups with more than 1 node (single nodes don't need grouping)
+	for (const [key, group] of groups) {
+		if (group.nodes.length <= 1) {
+			groups.delete(key)
+		}
+	}
+
+	return groups
 }
 
 interface DiagramViewerProps {
@@ -81,6 +147,21 @@ interface DiagramViewerProps {
 export function DiagramViewer({ diagram, onOpenFile, onSaveDiagram }: DiagramViewerProps) {
 	const [selectedNode, setSelectedNode] = useState<FlowNodeType | null>(null)
 	const [selectedEdge, setSelectedEdge] = useState<FlowEdge | null>(null)
+	const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+
+	// Group nodes by file
+	const nodeGroups = useMemo(() => groupNodesByFile(diagram.nodes), [diagram.nodes])
+
+	// Get set of all grouped node IDs
+	const groupedNodeIds = useMemo(() => {
+		const ids = new Set<string>()
+		for (const group of nodeGroups.values()) {
+			for (const id of group.nodeIds) {
+				ids.add(id)
+			}
+		}
+		return ids
+	}, [nodeGroups])
 
 	// Handler for node clicks
 	const handleNodeClick = useCallback(
@@ -93,13 +174,128 @@ export function DiagramViewer({ diagram, onOpenFile, onSaveDiagram }: DiagramVie
 		[diagram.nodes],
 	)
 
-	// Convert diagram edges to React Flow edges (needed for layout calculation)
-	const initialEdges: Edge[] = useMemo(() => {
-		return diagram.edges.map((edge) => {
-			return {
+	// Handler for group expansion toggle
+	const handleToggleExpand = useCallback((groupId: string) => {
+		setExpandedGroups((prev) => {
+			const next = new Set(prev)
+			if (next.has(groupId)) {
+				next.delete(groupId)
+			} else {
+				next.add(groupId)
+			}
+			return next
+		})
+	}, [])
+
+	// Always filter return edges for architectural clarity
+	const filteredDiagramEdges = useMemo(() => {
+		return diagram.edges.filter((edge) => !isReturnEdge(edge))
+	}, [diagram.edges])
+
+	// Build visible nodes based on expansion state
+	const visibleNodes = useMemo(() => {
+		const result: Node[] = []
+
+		// Add non-grouped nodes
+		for (const node of diagram.nodes) {
+			if (!groupedNodeIds.has(node.id)) {
+				result.push({
+					id: node.id,
+					type: "flowNode",
+					position: node.position || { x: 0, y: 0 },
+					data: {
+						label: node.label,
+						nodeType: node.type,
+						filePath: node.filePath,
+						lineNumber: node.lineNumber,
+						entityPurpose: node.entityPurpose,
+						onNodeClick: handleNodeClick,
+					} as FlowNodeData,
+				})
+			}
+		}
+
+		// Add group nodes or their children
+		for (const [filePath, group] of nodeGroups) {
+			const groupId = `group-${filePath.replace(/[^a-zA-Z0-9]/g, "_")}`
+			const isExpanded = expandedGroups.has(groupId)
+
+			if (isExpanded) {
+				// Show individual child nodes
+				for (const node of group.nodes) {
+					result.push({
+						id: node.id,
+						type: "flowNode",
+						position: node.position || { x: 0, y: 0 },
+						data: {
+							label: node.label,
+							nodeType: node.type,
+							filePath: node.filePath,
+							lineNumber: node.lineNumber,
+							entityPurpose: node.entityPurpose,
+							onNodeClick: handleNodeClick,
+						} as FlowNodeData,
+					})
+				}
+			} else {
+				// Show summary group node
+				result.push({
+					id: groupId,
+					type: "groupedNode",
+					position: { x: 0, y: 0 },
+					data: {
+						label: group.fileName,
+						childCount: group.nodes.length,
+						childNodeIds: group.nodeIds,
+						isExpanded: false,
+						onToggleExpand: handleToggleExpand,
+						onNodeClick: handleNodeClick,
+					} as GroupedFlowNodeData,
+				})
+			}
+		}
+
+		return result
+	}, [diagram.nodes, nodeGroups, groupedNodeIds, expandedGroups, handleNodeClick, handleToggleExpand])
+
+	// Build visible edges, remapping to group nodes when collapsed
+	const visibleEdges = useMemo(() => {
+		const edges: Edge[] = []
+
+		for (const edge of filteredDiagramEdges) {
+			let source = edge.source
+			let target = edge.target
+
+			// Remap source/target to group node if the original node is grouped and collapsed
+			for (const [filePath, group] of nodeGroups) {
+				const groupId = `group-${filePath.replace(/[^a-zA-Z0-9]/g, "_")}`
+				const isExpanded = expandedGroups.has(groupId)
+
+				if (!isExpanded) {
+					if (group.nodeIds.includes(source)) {
+						source = groupId
+					}
+					if (group.nodeIds.includes(target)) {
+						target = groupId
+					}
+				}
+			}
+
+			// Skip self-loops that result from grouping
+			if (source === target) {
+				continue
+			}
+
+			// Avoid duplicate edges between same source/target
+			const edgeKey = `${source}-${target}`
+			if (edges.some((e) => `${e.source}-${e.target}` === edgeKey)) {
+				continue
+			}
+
+			edges.push({
 				id: edge.id,
-				source: edge.source,
-				target: edge.target,
+				source,
+				target,
 				label: edge.label,
 				type: "smoothstep",
 				animated: edge.type === "dataflow",
@@ -123,33 +319,25 @@ export function DiagramViewer({ diagram, onOpenFile, onSaveDiagram }: DiagramVie
 					fill: "#1f2937",
 					fillOpacity: 0.9,
 				},
-			}
-		})
-	}, [diagram.edges])
+			})
+		}
 
-	// Convert diagram nodes to React Flow nodes and apply layout
-	const initialNodes = useMemo(() => {
-		// Create raw nodes first
-		const rawNodes = diagram.nodes.map((node, index) => ({
-			id: node.id,
-			type: "flowNode",
-			position: node.position || { x: 250, y: index * 150 }, // Fallback position
-			data: {
-				label: node.label,
-				nodeType: node.type,
-				filePath: node.filePath,
-				lineNumber: node.lineNumber,
-				entityPurpose: node.entityPurpose,
-				onNodeClick: handleNodeClick,
-			} as FlowNodeData,
-		}))
+		return edges
+	}, [filteredDiagramEdges, nodeGroups, expandedGroups])
 
-		// Apply automatic layout using dagre
-		return getLayoutedNodes(rawNodes, initialEdges)
-	}, [diagram.nodes, initialEdges, handleNodeClick])
+	// Apply layout to visible nodes
+	const layoutedNodes = useMemo(() => {
+		return getLayoutedNodes(visibleNodes, visibleEdges)
+	}, [visibleNodes, visibleEdges])
 
-	const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
-	const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
+	const [nodes, setNodes, onNodesChange] = useNodesState(layoutedNodes)
+	const [edges, setEdges, onEdgesChange] = useEdgesState(visibleEdges)
+
+	// Update nodes/edges when layout changes (due to expansion)
+	useEffect(() => {
+		setNodes(layoutedNodes)
+		setEdges(visibleEdges)
+	}, [layoutedNodes, visibleEdges, setNodes, setEdges])
 
 	const onConnect = useCallback(
 		(params: Connection) => setEdges((eds) => addEdge({ ...params, type: "smoothstep" }, eds)),
@@ -158,7 +346,6 @@ export function DiagramViewer({ diagram, onOpenFile, onSaveDiagram }: DiagramVie
 
 	const handleEdgeClick = useCallback(
 		(_event: React.MouseEvent, edge: Edge) => {
-			// Get the original edge from diagram edges by ID
 			const originalEdge = diagram.edges.find((e) => e.id === edge.id)
 			if (originalEdge && originalEdge.metadata) {
 				setSelectedEdge(originalEdge)
@@ -188,6 +375,9 @@ export function DiagramViewer({ diagram, onOpenFile, onSaveDiagram }: DiagramVie
 		URL.revokeObjectURL(url)
 	}
 
+	// Count filtered return edges for info display
+	const filteredReturnEdgeCount = diagram.edges.filter(isReturnEdge).length
+
 	return (
 		<div className="w-full h-full relative">
 			<ReactFlow
@@ -215,13 +405,17 @@ export function DiagramViewer({ diagram, onOpenFile, onSaveDiagram }: DiagramVie
 						<div className="font-medium">{diagram.description}</div>
 						<div className="text-description text-xs">Entry: {diagram.entryPoint}</div>
 						<div className="text-description text-xs">
-							{diagram.nodes.length} nodes, {diagram.edges.length} edges
+							{nodes.length} nodes, {edges.length} edges
+							{filteredReturnEdgeCount > 0 && (
+								<span className="text-gray-500"> ({filteredReturnEdgeCount} return edges filtered)</span>
+							)}
 						</div>
 					</div>
 				</Panel>
 
-				{/* Export Button */}
-				<Panel position="top-right">
+				{/* Controls Panel */}
+				<Panel className="flex gap-2" position="top-right">
+					{/* Export Button */}
 					<button
 						className="flex items-center gap-2 px-3 py-2 bg-editor-background border border-editor-group-border rounded-lg hover:bg-list-hover-background transition-colors text-sm"
 						onClick={handleExport}

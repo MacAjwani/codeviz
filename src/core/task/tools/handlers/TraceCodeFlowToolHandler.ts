@@ -16,9 +16,11 @@ import { ToolResultUtils } from "../utils/ToolResultUtils"
  * Entity object from agent's analysis
  */
 interface EntityInput {
-	label: string // Short descriptor (e.g., "AuthService.login()")
+	label: string // Functional descriptor (e.g., "Auth: Sign In")
 	type: NodeType // Entity type
 	entityPurpose: string // Purpose in the larger system
+	codeName?: string // Original code identifier for developers
+	group?: "client" | "server" | "data" // Architectural group
 	filePath?: string // Path to code (omit for external entities)
 	lineNumber?: number // Line where entity code begins
 }
@@ -452,6 +454,8 @@ export class TraceCodeFlowToolHandler implements IFullyManagedTool {
 					.replace(/[^a-z0-9-]/g, "")}`,
 				label: entity.label,
 				type: entity.type,
+				codeName: entity.codeName,
+				group: entity.group,
 				filePath: resolvedPath, // Optional - external entities won't have this
 				lineNumber: entity.lineNumber,
 				entityPurpose: entity.entityPurpose,

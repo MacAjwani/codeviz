@@ -354,7 +354,7 @@
   },
   {
     "name": "trace_code_flow",
-    "description": "Create an interactive code flow diagram from your traced analysis. After tracing a code flow through the codebase, provide a high-level description and list of steps. The tool will interactively guide you through providing details for each step, then generate a visual diagram.",
+    "description": "Create a simplified architectural data flow diagram. Prioritize CLARITY over COMPLETENESS.\n\nRULES:\n1. UNIDIRECTIONAL FLOW ONLY: Never generate return/response edges. The graph flows top-to-bottom.\n2. FUNCTIONAL LABELS: Use 'Category: Action' format (e.g., 'Auth: Sign In', 'Data: Store User').\n3. FILTER NOISE: Merge utility functions (crud.*, utils.*, helper.*) into their parent nodes.\n4. GROUP NODES: Assign every node a 'group' (client/server/data) for architectural organization.\n5. LIMIT: Maximum 8 nodes per diagram. Focus on the big picture.",
     "parameters": {
       "type": "OBJECT",
       "properties": {
@@ -364,10 +364,10 @@
         "entry_point": {
           "type": "STRING"
         },
-        "steps": {
+        "entities": {
           "type": "STRING"
         },
-        "code_segments": {
+        "flows": {
           "type": "STRING"
         },
         "task_progress": {
@@ -377,8 +377,8 @@
       "required": [
         "description",
         "entry_point",
-        "steps",
-        "code_segments"
+        "entities",
+        "flows"
       ]
     }
   },
