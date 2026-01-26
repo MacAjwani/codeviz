@@ -10,7 +10,13 @@ const GENERIC: ClineToolSpec = {
 	id,
 	name: "trace_code_flow",
 	description:
-		"Create an entity-relationship data flow diagram. Identify all entities (specific methods/functions, UI elements, databases, APIs, etc.) involved in a flow and how data moves between them. The diagram shows what communicates with what, not step-by-step execution. IMPORTANT: Use high granularity - identify SPECIFIC functions (e.g., 'AuthService.login()' not 'AuthService'), SPECIFIC event handlers (e.g., 'LoginButton.onClick' not 'LoginButton'), and SPECIFIC API endpoints.",
+		"Create an entity-relationship data flow diagram showing how data moves through a system. Identifies entities (User, UI elements, methods, APIs, databases) and data flows between them. Use this to visualize authentication flows, feature workflows, or request lifecycles. The diagram shows WHAT communicates with WHAT, not step-by-step execution.",
+	instruction:
+		"CRITICAL REQUIREMENTS:\n" +
+		"1. Entity types must be exact lowercase strings with underscores: 'user', 'ui_element', 'component', 'method', 'api_endpoint', 'database', 'external_service', 'event_handler', 'state_manager'\n" +
+		"2. Use high granularity - 'AuthService.login()' not 'AuthService', 'submitButton.onClick' not 'submitButton'\n" +
+		"3. Flows must reference entity LABELS (not IDs) - case-sensitive, character-exact matching\n" +
+		"4. Every flow must include sampleData showing field structure",
 	parameters: [
 		{
 			name: "description",
@@ -29,15 +35,131 @@ const GENERIC: ClineToolSpec = {
 			name: "entities",
 			required: true,
 			instruction:
-				'JSON array of entity objects. Each entity MUST have these exact fields:\n\nREQUIRED FIELDS:\n- "label" (string): Specific entity name. Use high granularity - GOOD: "UserModel.validateEmail()", BAD: "UserModel". GOOD: "submitButton.onClick", BAD: "submitButton".\n- "type" (string): Must be one of: "user", "ui_element", "component", "method", "api_endpoint", "database", "external_service", "event_handler", "state_manager"\n- "entityPurpose" (string): What this entity does in the system (1-2 sentences)\n\nOPTIONAL FIELDS (only for entities with code in the codebase):\n- "filePath" (string): Relative path to file (e.g., "src/services/AuthService.ts")\n- "lineNumber" (number): Line where this entity is defined\n\nEXTERNAL ENTITIES: Omit filePath/lineNumber for external services, databases, APIs not in your codebase.\n\nGRANULARITY RULES:\n- Methods: Include class/object name (e.g., "AuthService.login()", "validatePassword()")\n- UI Elements: Include specific element and event (e.g., "loginButton.onClick", "emailInput.onBlur")\n- Components: Use component name (e.g., "LoginForm", "UserAvatar")\n- API Endpoints: Include HTTP method and path (e.g., "POST /api/auth/login")\n- Databases: Use table name or database name (e.g., "users_table", "redis_cache")',
-			usage: '[{"label":"User","type":"user","entityPurpose":"Person using the application"},{"label":"loginButton.onClick","type":"event_handler","filePath":"src/components/LoginForm.tsx","lineNumber":23,"entityPurpose":"Event handler that fires when user clicks login button"},{"label":"AuthService.login()","type":"method","filePath":"src/services/AuthService.ts","lineNumber":45,"entityPurpose":"Validates user credentials and initiates session creation"},{"label":"POST /api/auth/login","type":"api_endpoint","filePath":"src/api/routes/auth.ts","lineNumber":12,"entityPurpose":"Backend REST endpoint that authenticates users"},{"label":"users_table","type":"database","entityPurpose":"PostgreSQL table storing user credentials and profile data"}]',
+				"JSON array of entity objects.\n\n" +
+				"▶ REQUIRED FIELDS (3):\n\n" +
+				'1. "label" (string) - Specific entity name with high granularity\n' +
+				'   GOOD: "AuthService.login()", "submitButton.onClick"\n' +
+				'   BAD: "AuthService", "submitButton"\n\n' +
+				'2. "type" (string) - EXACTLY one of these 9 values (lowercase with underscores):\n' +
+				"   • user - the person using the app\n" +
+				"   • ui_element - buttons, inputs, forms\n" +
+				"   • component - React/Vue/Angular components\n" +
+				"   • method - functions, class methods\n" +
+				"   • api_endpoint - REST/GraphQL endpoints\n" +
+				"   • database - databases, tables\n" +
+				"   • external_service - third-party APIs\n" +
+				"   • event_handler - event listeners, callbacks\n" +
+				"   • state_manager - Redux, Context, stores\n\n" +
+				'3. "entityPurpose" (string) - What this entity does in the system (1-2 sentences)\n\n' +
+				"▶ OPTIONAL FIELDS (3):\n\n" +
+				'4. "filePath" (string) - Relative path to source file (e.g., "src/services/AuthService.ts")\n' +
+				'5. "lineNumber" (number) - Line where entity starts\n' +
+				'6. "componentLayer" (string) - System component/layer this entity belongs to (e.g., "View", "Controller", "Model", "Data Access", "External Services")\n\n' +
+				"▶ WHEN TO OMIT filePath/lineNumber:\n" +
+				'- External services (e.g., "Stripe API", "PostgreSQL")\n' +
+				'- Browser APIs (e.g., "localStorage")\n' +
+				"- Third-party libraries\n\n" +
+				"▶ VALIDATION:\n" +
+				'- Type must be ONE of the 9 values above (NOT "Function", "UI Element", "Event Listener")\n' +
+				"- Labels must be unique across all entities\n" +
+				"- Use specific names, not generic categories",
+			usage:
+				"[\n" +
+				"  {\n" +
+				'    "label": "User",\n' +
+				'    "type": "user",\n' +
+				'    "entityPurpose": "Person using the application"\n' +
+				"  },\n" +
+				"  {\n" +
+				'    "label": "loginButton.onClick",\n' +
+				'    "type": "event_handler",\n' +
+				'    "filePath": "src/components/LoginForm.tsx",\n' +
+				'    "lineNumber": 23,\n' +
+				'    "entityPurpose": "Event handler that fires when user clicks login button",\n' +
+				'    "componentLayer": "View"\n' +
+				"  },\n" +
+				"  {\n" +
+				'    "label": "AuthService.login()",\n' +
+				'    "type": "method",\n' +
+				'    "filePath": "src/services/AuthService.ts",\n' +
+				'    "lineNumber": 45,\n' +
+				'    "entityPurpose": "Validates user credentials and initiates session creation",\n' +
+				'    "componentLayer": "Controller"\n' +
+				"  },\n" +
+				"  {\n" +
+				'    "label": "POST /api/auth/login",\n' +
+				'    "type": "api_endpoint",\n' +
+				'    "filePath": "src/api/routes/auth.ts",\n' +
+				'    "lineNumber": 12,\n' +
+				'    "entityPurpose": "Backend REST endpoint that authenticates users",\n' +
+				'    "componentLayer": "API"\n' +
+				"  },\n" +
+				"  {\n" +
+				'    "label": "users_table",\n' +
+				'    "type": "database",\n' +
+				'    "entityPurpose": "PostgreSQL table storing user credentials and profile data",\n' +
+				'    "componentLayer": "Data Storage"\n' +
+				"  }\n" +
+				"]",
 		},
 		{
 			name: "flows",
 			required: true,
 			instruction:
-				'JSON array of flow objects describing data movement. Each flow MUST have these exact fields:\n\nREQUIRED FIELDS:\n- "fromEntity" (string): Label of source entity (must exactly match an entity label)\n- "toEntity" (string): Label of target entity (must exactly match an entity label)\n- "trigger" (string): What causes this flow (e.g., "click event", "function call", "HTTP request")\n- "dataDescription" (string): What data flows between entities (be specific)\n- "dataFormat" (string): Format of the data (e.g., "JSON", "DOM Event", "JavaScript object", "HTTP POST body", "Custom Event")\n- "sampleData" (string): Example showing the STRUCTURE of the data with field names. REQUIRED - show what fields/properties exist.\n\nSAMPLE DATA RULES:\n- Show field names and example values\n- Use realistic field names from the code\n- For objects: show structure like \'{ username: "user@example.com", password: "***" }\'\n- For events: show relevant properties like \'MouseEvent { type: "click", target: <button> }\'\n- For arrays: show item structure like \'[{ id: 1, name: "Item" }]\'\n- Keep it concise but informative about data structure',
-			usage: '[{"fromEntity":"User","toEntity":"loginButton.onClick","trigger":"mouse click","dataDescription":"User mouse click on login button","dataFormat":"DOM MouseEvent","sampleData":"MouseEvent { type: \'click\', clientX: 245, clientY: 132, target: <button> }"},{"fromEntity":"loginButton.onClick","toEntity":"AuthService.login()","trigger":"function call","dataDescription":"Username and password collected from form inputs","dataFormat":"JavaScript object","sampleData":"{ username: \'john@example.com\', password: \'hashed_pw_123\', rememberMe: true }"},{"fromEntity":"AuthService.login()","toEntity":"POST /api/auth/login","trigger":"HTTP POST request","dataDescription":"User credentials sent to backend for validation","dataFormat":"JSON HTTP POST body","sampleData":"{ \'username\': \'john@example.com\', \'password\': \'hashed_pw_123\', \'clientId\': \'web-app\' }"},{"fromEntity":"POST /api/auth/login","toEntity":"users_table","trigger":"SQL query","dataDescription":"Query to verify user credentials exist in database","dataFormat":"SQL SELECT statement","sampleData":"SELECT id, password_hash, email FROM users WHERE username = \'john@example.com\'"}]',
+				"JSON array of flow objects describing data movement.\n\n" +
+				"▶ REQUIRED FIELDS (6):\n\n" +
+				'1. "fromEntity" (string) - Source entity LABEL (must match an entity label exactly)\n' +
+				'2. "toEntity" (string) - Target entity LABEL (must match an entity label exactly)\n' +
+				'3. "trigger" (string) - What causes this flow (e.g., "click event", "function call")\n' +
+				'4. "dataDescription" (string) - What data is passed\n' +
+				'5. "dataFormat" (string) - Format of data (e.g., "JSON", "DOM Event", "Function parameters")\n' +
+				'6. "sampleData" (string) - Example showing field structure (REQUIRED)\n\n' +
+				"▶ CRITICAL - LABEL MATCHING:\n" +
+				"- Use entity LABELS, NOT entity IDs\n" +
+				'- If entity label is "AuthService.login()", flow must use "AuthService.login()"\n' +
+				"- Matching is case-sensitive and character-exact\n" +
+				'- Example: fromEntity: "loginButton.onClick" (NOT "entity-1-loginbutton-onclick")\n\n' +
+				"▶ SAMPLE DATA RULES:\n" +
+				"- Show field names and example values\n" +
+				'- Objects: { username: "john@example.com", password: "***", rememberMe: true }\n' +
+				'- Events: MouseEvent { type: "click", clientX: 100, clientY: 200, target: <button> }\n' +
+				'- Arrays: [{ id: 1, name: "Item", status: "active" }]\n' +
+				"- SQL: SELECT id, email, created_at FROM users WHERE username = 'john'",
+			usage:
+				"[\n" +
+				"  {\n" +
+				'    "fromEntity": "User",\n' +
+				'    "toEntity": "loginButton.onClick",\n' +
+				'    "trigger": "mouse click",\n' +
+				'    "dataDescription": "User mouse click on login button",\n' +
+				'    "dataFormat": "DOM MouseEvent",\n' +
+				'    "sampleData": "MouseEvent { type: \'click\', clientX: 245, clientY: 132, target: <button> }"\n' +
+				"  },\n" +
+				"  {\n" +
+				'    "fromEntity": "loginButton.onClick",\n' +
+				'    "toEntity": "AuthService.login()",\n' +
+				'    "trigger": "function call",\n' +
+				'    "dataDescription": "Username and password collected from form inputs",\n' +
+				'    "dataFormat": "JavaScript object",\n' +
+				"    \"sampleData\": \"{ username: 'john@example.com', password: 'hashed_pw_123', rememberMe: true }\"\n" +
+				"  },\n" +
+				"  {\n" +
+				'    "fromEntity": "AuthService.login()",\n' +
+				'    "toEntity": "POST /api/auth/login",\n' +
+				'    "trigger": "HTTP POST request",\n' +
+				'    "dataDescription": "User credentials sent to backend for validation",\n' +
+				'    "dataFormat": "JSON HTTP POST body",\n' +
+				"    \"sampleData\": \"{ 'username': 'john@example.com', 'password': 'hashed_pw_123', 'clientId': 'web-app' }\"\n" +
+				"  },\n" +
+				"  {\n" +
+				'    "fromEntity": "POST /api/auth/login",\n' +
+				'    "toEntity": "users_table",\n' +
+				'    "trigger": "SQL query",\n' +
+				'    "dataDescription": "Query to verify user credentials exist in database",\n' +
+				'    "dataFormat": "SQL SELECT statement",\n' +
+				'    "sampleData": "SELECT id, password_hash, email FROM users WHERE username = \'john@example.com\'"\n' +
+				"  }\n" +
+				"]",
 		},
 		TASK_PROGRESS_PARAMETER,
 	],
@@ -47,12 +169,30 @@ const NEXT_GEN: ClineToolSpec = {
 	...GENERIC,
 	variant: ModelFamily.NEXT_GEN,
 	description:
-		"Create an entity-relationship data flow diagram showing how data moves through a system. First, trace the requested flow to identify: (1) All SPECIFIC entities involved (e.g., SPECIFIC functions like 'UserModel.save()', SPECIFIC event handlers like 'submitButton.onClick', NOT broad entities like 'UserModel' or 'submitButton'). Entities are 'things' that exist: User, UI elements, methods, API endpoints, databases, external services. (2) How data flows between entities - what triggers each flow, what data is passed, in what format, and ALWAYS include sampleData showing the structure/fields. Then call this tool with the entities and flows to generate a visual diagram. Focus on WHAT communicates with WHAT using high granularity.",
+		"Create an entity-relationship data flow diagram showing how data moves through a system. Identifies entities (User, UI elements, methods, APIs, databases) and data flows between them. Use this to visualize authentication flows, feature workflows, or request lifecycles. The diagram shows WHAT communicates with WHAT, not step-by-step execution.",
+	instruction:
+		GENERIC.instruction +
+		"\n\n" +
+		"▶ RECOMMENDED WORKFLOW:\n" +
+		"1. First, identify all entities by reading relevant code files\n" +
+		"2. For each entity, determine its specific type and purpose\n" +
+		"3. Then trace data flows between entities\n" +
+		"4. Finally, call this tool with complete entities and flows arrays\n\n" +
+		"This ensures you have a complete picture before generating the diagram.",
 }
 
 const NATIVE_GPT_5: ClineToolSpec = {
 	...NEXT_GEN,
 	variant: ModelFamily.NATIVE_GPT_5,
+	instruction:
+		NEXT_GEN.instruction +
+		"\n\n" +
+		"▶ TYPE VALIDATION CHECKLIST:\n" +
+		"Before calling this tool, verify:\n" +
+		"☐ All entity types are lowercase with underscores\n" +
+		"☐ All flow fromEntity/toEntity values exactly match entity labels\n" +
+		"☐ All flows include sampleData field\n" +
+		'☐ No entities use "Function", "UI Element", or "Event Listener" as type',
 }
 
 const NATIVE_NEXT_GEN: ClineToolSpec = {
