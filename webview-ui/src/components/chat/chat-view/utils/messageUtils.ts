@@ -774,6 +774,8 @@ export function getIconByToolName(toolName: string) {
 			return ShapesIcon
 		case "traceCodeFlow":
 			return WorkflowIcon
+		case "generateArchitectureDiagram":
+			return WorkflowIcon
 		default:
 			return WrenchIcon
 	}

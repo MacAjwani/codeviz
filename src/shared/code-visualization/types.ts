@@ -4,6 +4,23 @@
  */
 
 /**
+ * System component/layer grouping information
+ */
+export interface SystemComponent {
+	/** Unique identifier for this component */
+	id: string
+
+	/** Name of the component (e.g., "View Layer", "Controller", "Data Access") */
+	name: string
+
+	/** Description of this component's role in the system */
+	description: string
+
+	/** Color for visual distinction (hex color) */
+	color?: string
+}
+
+/**
  * Complete diagram representation with nodes, edges, and metadata
  */
 export interface CodeFlowDiagram {
@@ -18,6 +35,9 @@ export interface CodeFlowDiagram {
 
 	/** Array of edges connecting nodes to show data/control flow */
 	edges: FlowEdge[]
+
+	/** System components/layers for grouping nodes */
+	components?: SystemComponent[]
 
 	/** Metadata about the diagram */
 	metadata: DiagramMetadata
@@ -58,6 +78,9 @@ export interface FlowNode {
 
 	/** Purpose of this entity in the larger system */
 	entityPurpose: string
+
+	/** Which system component/layer this entity belongs to (e.g., "View", "Model", "Controller") */
+	componentLayer?: string
 
 	/** Visual positioning for the diagram (auto-calculated or manual) */
 	position?: { x: number; y: number }

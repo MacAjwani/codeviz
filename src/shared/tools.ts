@@ -33,6 +33,7 @@ export enum ClineDefaultTool {
 	GENERATE_EXPLANATION = "generate_explanation",
 	USE_SKILL = "use_skill",
 	TRACE_CODE_FLOW = "trace_code_flow",
+	GENERATE_ARCH_DIAGRAM = "generate_architecture_diagram",
 }
 
 // Array of all tool names for compatibility
@@ -52,4 +53,5 @@ export const READ_ONLY_TOOLS = [
 	ClineDefaultTool.WEB_FETCH,
 	ClineDefaultTool.USE_SKILL,
 	ClineDefaultTool.TRACE_CODE_FLOW,
+	ClineDefaultTool.GENERATE_ARCH_DIAGRAM,
 ] as const

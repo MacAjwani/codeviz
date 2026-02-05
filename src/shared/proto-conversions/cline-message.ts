@@ -107,6 +107,7 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		hook_output_stream: ClineSay.HOOK_OUTPUT_STREAM,
 		generate_explanation: ClineSay.GENERATE_EXPLANATION,
 		trace_code_flow: ClineSay.TRACE_CODE_FLOW,
+		architecture_diagram: ClineSay.ARCHITECTURE_DIAGRAM,
 	}
 
 	const result = mapping[say]
@@ -158,6 +159,7 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.HOOK_STATUS]: "hook_status",
 		[ClineSay.HOOK_OUTPUT_STREAM]: "hook_output_stream",
 		[ClineSay.TRACE_CODE_FLOW]: "trace_code_flow",
+		[ClineSay.ARCHITECTURE_DIAGRAM]: "architecture_diagram",
 	}
 
 	return mapping[say]

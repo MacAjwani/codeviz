@@ -69,6 +69,7 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.GENERATE_EXPLANATION,
 		ClineDefaultTool.TRACE_CODE_FLOW,
+		ClineDefaultTool.GENERATE_ARCH_DIAGRAM,
 		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({

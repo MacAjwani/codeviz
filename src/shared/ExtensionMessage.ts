@@ -189,6 +189,7 @@ export type ClineSay =
 	| "hook_status"
 	| "hook_output_stream"
 	| "trace_code_flow"
+	| "architecture_diagram"
 
 export interface ClineSayTool {
 	tool:
@@ -205,7 +206,9 @@ export interface ClineSayTool {
 		| "summarizeTask"
 		| "useSkill"
 		| "traceCodeFlow"
+		| "generateArchitectureDiagram"
 	path?: string
+	clusteringHint?: string
 	entryPoint?: string
 	description?: string
 	maxDepth?: string

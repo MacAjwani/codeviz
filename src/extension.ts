@@ -101,6 +101,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	// Architecture diagram is now integrated into the main webview (split view)
+	// No separate panel needed
+
 	const { commands } = ExtensionRegistryInfo
 
 	context.subscriptions.push(

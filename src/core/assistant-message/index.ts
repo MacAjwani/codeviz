@@ -54,6 +54,9 @@ export const toolParamNames = [
 	"max_depth",
 	"entities",
 	"flows",
+	"workspace_path",
+	"clustering_hint",
+	"use_cache",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]

@@ -53,6 +53,7 @@ export const config = createVariant(ModelFamily.GLM)
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.GENERATE_EXPLANATION,
 		ClineDefaultTool.TRACE_CODE_FLOW,
+		ClineDefaultTool.GENERATE_ARCH_DIAGRAM,
 		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({

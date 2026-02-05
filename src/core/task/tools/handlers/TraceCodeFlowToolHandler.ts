@@ -21,6 +21,7 @@ interface EntityInput {
 	entityPurpose: string // Purpose in the larger system
 	filePath?: string // Path to code (omit for external entities)
 	lineNumber?: number // Line where entity code begins
+	componentLayer?: string // System component/layer (e.g., "View", "Controller", "Model")
 }
 
 /**
@@ -99,11 +100,11 @@ export class TraceCodeFlowToolHandler implements IFullyManagedTool {
 		const entitiesParam: string | string[] | undefined = (block.params as any).entities
 		const flowsParam: string | string[] | undefined = (block.params as any).flows
 
-		console.log("[TraceCodeFlow] Parameters received:")
-		console.log(`  - description: ${description?.substring(0, 100)}`)
-		console.log(`  - entry_point: ${entryPoint}`)
-		console.log(`  - entities type: ${typeof entitiesParam}`)
-		console.log(`  - flows type: ${typeof flowsParam}`)
+		console.log(`[TraceCodeFlow] Parameters received: ${JSON.stringify(block.params, null, 2)}`)
+		// console.log(`  - description: ${description?.substring(0, 100)}`)
+		// console.log(`  - entry_point: ${entryPoint}`)
+		// console.log(`  - entities type: ${entitiesParam}`)
+		// console.log(`  - flows type: ${flowsParam}`)
 
 		// Extract provider information for telemetry
 		const apiConfig = config.services.stateManager.getApiConfiguration()
@@ -455,6 +456,29 @@ export class TraceCodeFlowToolHandler implements IFullyManagedTool {
 				filePath: resolvedPath, // Optional - external entities won't have this
 				lineNumber: entity.lineNumber,
 				entityPurpose: entity.entityPurpose,
+				componentLayer: entity.componentLayer,
+			}
+		})
+
+		// Extract unique component layers and generate component metadata
+		const componentLayers = new Set<string>()
+		entities.forEach((entity) => {
+			if (entity.componentLayer) {
+				componentLayers.add(entity.componentLayer)
+			}
+		})
+
+		const components = Array.from(componentLayers).map((layerName, index) => {
+			// Generate a description based on entities in this layer
+			const entitiesInLayer = entities.filter((e) => e.componentLayer === layerName)
+			const entityCount = entitiesInLayer.length
+			const entityTypes = Array.from(new Set(entitiesInLayer.map((e) => e.type))).join(", ")
+
+			return {
+				id: `component-${index}-${layerName.replace(/\s+/g, "-").toLowerCase()}`,
+				name: layerName,
+				description: `Contains ${entityCount} ${entityCount === 1 ? "entity" : "entities"} (${entityTypes})`,
+				color: this.getComponentColor(index),
 			}
 		})
 
@@ -503,6 +527,7 @@ export class TraceCodeFlowToolHandler implements IFullyManagedTool {
 			description,
 			nodes,
 			edges,
+			components: components.length > 0 ? components : undefined,
 			metadata: {
 				timestamp: Date.now(),
 				maxDepth: nodes.length,
@@ -530,5 +555,22 @@ export class TraceCodeFlowToolHandler implements IFullyManagedTool {
 		console.log(`[TraceCodeFlow] DiagramStorageService returned ID: ${diagramId}`)
 
 		return diagramId
+	}
+
+	/**
+	 * Get a color for a component based on its index
+	 */
+	private getComponentColor(index: number): string {
+		const colors = [
+			"#3b82f6", // blue
+			"#10b981", // green
+			"#f59e0b", // amber
+			"#8b5cf6", // purple
+			"#ef4444", // red
+			"#06b6d4", // cyan
+			"#ec4899", // pink
+			"#84cc16", // lime
+		]
+		return colors[index % colors.length]
 	}
 }

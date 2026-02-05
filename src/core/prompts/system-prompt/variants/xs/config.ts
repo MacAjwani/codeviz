@@ -48,6 +48,7 @@ export const config = createVariant(ModelFamily.XS)
 		ClineDefaultTool.PLAN_MODE,
 		ClineDefaultTool.GENERATE_EXPLANATION,
 		ClineDefaultTool.TRACE_CODE_FLOW,
+		ClineDefaultTool.GENERATE_ARCH_DIAGRAM,
 		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({

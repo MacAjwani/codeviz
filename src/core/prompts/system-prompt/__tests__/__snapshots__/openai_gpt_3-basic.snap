@@ -267,34 +267,162 @@ Usage:
 </generate_explanation>
 
 ## trace_code_flow
-Description: Create an interactive code flow diagram from your traced analysis. After tracing a code flow through the codebase, provide a high-level description and list of steps. The tool will interactively guide you through providing details for each step, then generate a visual diagram.
+Description: Create an entity-relationship data flow diagram showing how data moves through a system. Identifies entities (User, UI elements, methods, APIs, databases) and data flows between them. Use this to visualize authentication flows, feature workflows, or request lifecycles. The diagram shows WHAT communicates with WHAT, not step-by-step execution.
 Parameters:
-- description: (required) A clear description of what this code flow represents. Describe the overall behavior or feature being traced.
-- entry_point: (required) The starting point of the flow. Format: 'filePath:symbolName' or just 'filePath'. This is where the user interaction or execution begins.
-- steps: (required) Array of step objects as JSON. REQUIRED fields: label, type, filePath, description, inputs, outputs. OPTIONAL: lineNumber, connectionTo. Types: ui_element, component, function, api, hook, service, utility, database, external, entry, state, event. For "connectionTo", describe how this connects to the next step: {type: "function_call"|"event"|"http"|"callback"|"return"|"render"|"state_update", data: "what is passed"}. NOTE: Do NOT include codeSegment in the JSON - use the code_segments parameter instead.
-- code_segments: (required) Code snippets for each step, separated by "---STEP---". Use markdown code fences with language identifier (e.g., ```typescript, ```python, ```html). Provide one code segment for each step in the same order as the steps array. Format: ```language\ncode\n```
+- description: (required) Brief description of what this data flow diagram represents.
+- entry_point: (required) The starting entity for this flow. Use 'User' for user-initiated flows, or name the first entity that triggers the flow.
+- entities: (required) JSON array of entity objects.
+
+▶ REQUIRED FIELDS (3):
+
+1. "label" (string) - Specific entity name with high granularity
+   GOOD: "AuthService.login()", "submitButton.onClick"
+   BAD: "AuthService", "submitButton"
+
+2. "type" (string) - EXACTLY one of these 9 values (lowercase with underscores):
+   • user - the person using the app
+   • ui_element - buttons, inputs, forms
+   • component - React/Vue/Angular components
+   • method - functions, class methods
+   • api_endpoint - REST/GraphQL endpoints
+   • database - databases, tables
+   • external_service - third-party APIs
+   • event_handler - event listeners, callbacks
+   • state_manager - Redux, Context, stores
+
+3. "entityPurpose" (string) - What this entity does in the system (1-2 sentences)
+
+▶ OPTIONAL FIELDS (3):
+
+4. "filePath" (string) - Relative path to source file (e.g., "src/services/AuthService.ts")
+5. "lineNumber" (number) - Line where entity starts
+6. "componentLayer" (string) - System component/layer this entity belongs to (e.g., "View", "Controller", "Model", "Data Access", "External Services")
+
+▶ WHEN TO OMIT filePath/lineNumber:
+- External services (e.g., "Stripe API", "PostgreSQL")
+- Browser APIs (e.g., "localStorage")
+- Third-party libraries
+
+▶ VALIDATION:
+- Type must be ONE of the 9 values above (NOT "Function", "UI Element", "Event Listener")
+- Labels must be unique across all entities
+- Use specific names, not generic categories
+- flows: (required) JSON array of flow objects describing data movement.
+
+▶ REQUIRED FIELDS (6):
+
+1. "fromEntity" (string) - Source entity LABEL (must match an entity label exactly)
+2. "toEntity" (string) - Target entity LABEL (must match an entity label exactly)
+3. "trigger" (string) - What causes this flow (e.g., "click event", "function call")
+4. "dataDescription" (string) - What data is passed
+5. "dataFormat" (string) - Format of data (e.g., "JSON", "DOM Event", "Function parameters")
+6. "sampleData" (string) - Example showing field structure (REQUIRED)
+
+▶ CRITICAL - LABEL MATCHING:
+- Use entity LABELS, NOT entity IDs
+- If entity label is "AuthService.login()", flow must use "AuthService.login()"
+- Matching is case-sensitive and character-exact
+- Example: fromEntity: "loginButton.onClick" (NOT "entity-1-loginbutton-onclick")
+
+▶ SAMPLE DATA RULES:
+- Show field names and example values
+- Objects: { username: "john@example.com", password: "***", rememberMe: true }
+- Events: MouseEvent { type: "click", clientX: 100, clientY: 200, target: <button> }
+- Arrays: [{ id: 1, name: "Item", status: "active" }]
+- SQL: SELECT id, email, created_at FROM users WHERE username = 'john'
 - task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <trace_code_flow>
-<description>User creates a todo when clicking the Create ToDo button</description>
-<entry_point>html/index.html:Create ToDo Button</entry_point>
-<steps>[{"label":"Create Button","type":"entry","filePath":"html/index.html","lineNumber":12,"description":"User clicks create button to add new todo","inputs":"User mouse click","outputs":"Click event fires","connectionTo":{"type":"event","data":"Mouse click event triggers create function"}},{"label":"create","type":"function","filePath":"main.js","lineNumber":45,"description":"Creates new todo item and adds to list","inputs":"No parameters","outputs":"New todo object {text, id, completed}","connectionTo":{"type":"function_call","data":"Todo object passed to addTodo"}}]</steps>
-<code_segments>```html
-<button onclick="create()">Create ToDo</button>
-```
----STEP---
-```javascript
-function create() {
-  const todo = {
-    text: input.value,
-    id: Date.now(),
-    completed: false
-  };
-  addTodo(todo);
-}
-```</code_segments>
+<description>User authentication flow from login button to session storage</description>
+<entry_point>User</entry_point>
+<entities>[
+  {
+    "label": "User",
+    "type": "user",
+    "entityPurpose": "Person using the application"
+  },
+  {
+    "label": "loginButton.onClick",
+    "type": "event_handler",
+    "filePath": "src/components/LoginForm.tsx",
+    "lineNumber": 23,
+    "entityPurpose": "Event handler that fires when user clicks login button",
+    "componentLayer": "View"
+  },
+  {
+    "label": "AuthService.login()",
+    "type": "method",
+    "filePath": "src/services/AuthService.ts",
+    "lineNumber": 45,
+    "entityPurpose": "Validates user credentials and initiates session creation",
+    "componentLayer": "Controller"
+  },
+  {
+    "label": "POST /api/auth/login",
+    "type": "api_endpoint",
+    "filePath": "src/api/routes/auth.ts",
+    "lineNumber": 12,
+    "entityPurpose": "Backend REST endpoint that authenticates users",
+    "componentLayer": "API"
+  },
+  {
+    "label": "users_table",
+    "type": "database",
+    "entityPurpose": "PostgreSQL table storing user credentials and profile data",
+    "componentLayer": "Data Storage"
+  }
+]</entities>
+<flows>[
+  {
+    "fromEntity": "User",
+    "toEntity": "loginButton.onClick",
+    "trigger": "mouse click",
+    "dataDescription": "User mouse click on login button",
+    "dataFormat": "DOM MouseEvent",
+    "sampleData": "MouseEvent { type: 'click', clientX: 245, clientY: 132, target: <button> }"
+  },
+  {
+    "fromEntity": "loginButton.onClick",
+    "toEntity": "AuthService.login()",
+    "trigger": "function call",
+    "dataDescription": "Username and password collected from form inputs",
+    "dataFormat": "JavaScript object",
+    "sampleData": "{ username: 'john@example.com', password: 'hashed_pw_123', rememberMe: true }"
+  },
+  {
+    "fromEntity": "AuthService.login()",
+    "toEntity": "POST /api/auth/login",
+    "trigger": "HTTP POST request",
+    "dataDescription": "User credentials sent to backend for validation",
+    "dataFormat": "JSON HTTP POST body",
+    "sampleData": "{ 'username': 'john@example.com', 'password': 'hashed_pw_123', 'clientId': 'web-app' }"
+  },
+  {
+    "fromEntity": "POST /api/auth/login",
+    "toEntity": "users_table",
+    "trigger": "SQL query",
+    "dataDescription": "Query to verify user credentials exist in database",
+    "dataFormat": "SQL SELECT statement",
+    "sampleData": "SELECT id, password_hash, email FROM users WHERE username = 'john@example.com'"
+  }
+]</flows>
 <task_progress>Checklist here (optional)</task_progress>
 </trace_code_flow>
+
+## generate_architecture_diagram
+Description: Analyze workspace and generate an interactive architecture diagram with clustered components. Creates a high-level view of the codebase architecture by grouping files into logical components (5-12 clusters) based on responsibility and dependencies. Use this to understand system structure, identify architectural layers, and visualize component relationships.
+Parameters:
+- workspace_path: (optional) Optional: Path to workspace root to analyze. If omitted, uses current working directory.
+- clustering_hint: (optional) Optional: Hint to guide clustering strategy (e.g., 'Focus on backend vs frontend separation', 'Group by feature domain').
+- use_cache: (optional) Optional: Whether to use cached workspace analysis if available. Defaults to 'true'. Set to 'false' to force fresh analysis.
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
+Usage:
+<generate_architecture_diagram>
+<workspace_path>/Users/username/projects/my-app</workspace_path>
+<clustering_hint>Separate authentication, API routes, database access, and UI components</clustering_hint>
+<use_cache>true</use_cache>
+<task_progress>Checklist here (optional)</task_progress>
+</generate_architecture_diagram>
 
 # Tool Use Examples
 

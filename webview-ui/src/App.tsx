@@ -2,10 +2,10 @@ import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
 import { StringRequest } from "@shared/proto/cline/common"
 import { useEffect } from "react"
 import AccountView from "./components/account/AccountView"
-import ChatView from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import OnboardingView from "./components/onboarding/OnboardingView"
+import { SplitView } from "./components/SplitView"
 import SettingsView from "./components/settings/SettingsView"
 import { VisualizationView } from "./components/visualization"
 import WelcomeView from "./components/welcome/WelcomeView"
@@ -96,8 +96,9 @@ const AppContent = () => {
 					}}
 				/>
 			)}
-			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
-			<ChatView
+			{/* Main split view: Architecture diagram (left) + Chat (right) */}
+			{/* Do not conditionally load - expensive and has state we don't want to lose */}
+			<SplitView
 				hideAnnouncement={hideAnnouncement}
 				isHidden={showSettings || showHistory || showMcp || showAccount || showVisualization}
 				showAnnouncement={showAnnouncement}

@@ -14,8 +14,10 @@ import {
 import { useCallback, useMemo, useState } from "react"
 import "@xyflow/react/dist/style.css"
 import dagre from "@dagrejs/dagre"
-import type { CodeFlowDiagram, FlowEdge, FlowNode as FlowNodeType } from "@shared/code-visualization/types"
+import type { CodeFlowDiagram, FlowEdge, FlowNode as FlowNodeType, SystemComponent } from "@shared/code-visualization/types"
 import { DownloadIcon } from "lucide-react"
+import { ComponentDetailModal } from "./ComponentDetailModal"
+import { type ComponentGroupData, ComponentGroupNode } from "./ComponentGroupNode"
 import { EdgeDetailModal } from "./EdgeDetailModal"
 import { FlowNode, type FlowNodeData } from "./FlowNode"
 import { NodeDetailModal } from "./NodeDetailModal"
@@ -23,17 +25,20 @@ import { NodeDetailModal } from "./NodeDetailModal"
 // Register custom node types
 const nodeTypes = {
 	flowNode: FlowNode as any, // Type assertion needed for React Flow compatibility
+	componentGroup: ComponentGroupNode as any,
 }
 
 // Node dimensions for layout calculation
 const NODE_WIDTH = 220
 const NODE_HEIGHT = 80
+const GROUP_PADDING = 80
 
 /**
  * Apply automatic hierarchical layout using Dagre
+ * Supports compound graphs (parent-child relationships) for component grouping
  */
 function getLayoutedNodes(nodes: Node[], edges: Edge[]): Node[] {
-	const dagreGraph = new dagre.graphlib.Graph()
+	const dagreGraph = new dagre.graphlib.Graph({ compound: true })
 	dagreGraph.setDefaultEdgeLabel(() => ({}))
 
 	// Configure graph layout
@@ -46,9 +51,24 @@ function getLayoutedNodes(nodes: Node[], edges: Edge[]): Node[] {
 		marginy: 50,
 	})
 
-	// Add nodes to graph
+	// Separate parent nodes (component groups) from child nodes
+	const parentNodes = nodes.filter((n) => n.type === "componentGroup")
+	const childNodes = nodes.filter((n) => n.type !== "componentGroup")
+
+	// Add all nodes to graph with their dimensions
 	nodes.forEach((node) => {
-		dagreGraph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
+		const isParent = node.type === "componentGroup"
+		dagreGraph.setNode(node.id, {
+			width: isParent ? 400 : NODE_WIDTH, // Groups are wider
+			height: isParent ? 300 : NODE_HEIGHT, // Groups are taller
+		})
+	})
+
+	// Set parent-child relationships for compound graph
+	childNodes.forEach((child) => {
+		if (child.parentId) {
+			dagreGraph.setParent(child.id, child.parentId)
+		}
 	})
 
 	// Add edges to graph
@@ -62,12 +82,20 @@ function getLayoutedNodes(nodes: Node[], edges: Edge[]): Node[] {
 	// Apply computed positions to nodes
 	return nodes.map((node) => {
 		const nodeWithPosition = dagreGraph.node(node.id)
+		const isParent = node.type === "componentGroup"
+
 		return {
 			...node,
 			position: {
-				x: nodeWithPosition.x - NODE_WIDTH / 2,
-				y: nodeWithPosition.y - NODE_HEIGHT / 2,
+				x: nodeWithPosition.x - (isParent ? 400 : NODE_WIDTH) / 2,
+				y: nodeWithPosition.y - (isParent ? 300 : NODE_HEIGHT) / 2,
 			},
+			...(isParent && {
+				style: {
+					width: nodeWithPosition.width || 400,
+					height: nodeWithPosition.height || 300,
+				},
+			}),
 		}
 	})
 }
@@ -81,6 +109,7 @@ interface DiagramViewerProps {
 export function DiagramViewer({ diagram, onOpenFile, onSaveDiagram }: DiagramViewerProps) {
 	const [selectedNode, setSelectedNode] = useState<FlowNodeType | null>(null)
 	const [selectedEdge, setSelectedEdge] = useState<FlowEdge | null>(null)
+	const [selectedComponent, setSelectedComponent] = useState<SystemComponent | null>(null)
 
 	// Handler for node clicks
 	const handleNodeClick = useCallback(
@@ -91,6 +120,17 @@ export function DiagramViewer({ diagram, onOpenFile, onSaveDiagram }: DiagramVie
 			}
 		},
 		[diagram.nodes],
+	)
+
+	// Handler for component group clicks
+	const handleComponentClick = useCallback(
+		(componentId: string) => {
+			const component = diagram.components?.find((c) => c.id === componentId)
+			if (component) {
+				setSelectedComponent(component)
+			}
+		},
+		[diagram.components],
 	)
 
 	// Convert diagram edges to React Flow edges (needed for layout calculation)
@@ -129,24 +169,51 @@ export function DiagramViewer({ diagram, onOpenFile, onSaveDiagram }: DiagramVie
 
 	// Convert diagram nodes to React Flow nodes and apply layout
 	const initialNodes = useMemo(() => {
-		// Create raw nodes first
-		const rawNodes = diagram.nodes.map((node, index) => ({
-			id: node.id,
-			type: "flowNode",
-			position: node.position || { x: 250, y: index * 150 }, // Fallback position
-			data: {
-				label: node.label,
-				nodeType: node.type,
-				filePath: node.filePath,
-				lineNumber: node.lineNumber,
-				entityPurpose: node.entityPurpose,
-				onNodeClick: handleNodeClick,
-			} as FlowNodeData,
-		}))
+		const allNodes: Node[] = []
+
+		// Create parent nodes for each component if components exist
+		if (diagram.components && diagram.components.length > 0) {
+			diagram.components.forEach((component) => {
+				allNodes.push({
+					id: component.id,
+					type: "componentGroup",
+					position: { x: 0, y: 0 }, // Will be positioned by layout
+					data: {
+						component,
+						onComponentClick: handleComponentClick,
+					} as ComponentGroupData,
+				})
+			})
+		}
+
+		// Create child nodes with parent references
+		diagram.nodes.forEach((node, index) => {
+			// Find the parent component for this node
+			const parentComponentId = diagram.components?.find((c) => c.name === node.componentLayer)?.id
+
+			allNodes.push({
+				id: node.id,
+				type: "flowNode",
+				position: node.position || { x: 250, y: index * 150 }, // Fallback position
+				data: {
+					label: node.label,
+					nodeType: node.type,
+					filePath: node.filePath,
+					lineNumber: node.lineNumber,
+					entityPurpose: node.entityPurpose,
+					onNodeClick: handleNodeClick,
+				} as FlowNodeData,
+				// Set parent reference if this node belongs to a component
+				...(parentComponentId && {
+					parentId: parentComponentId,
+					extent: "parent" as const,
+				}),
+			})
+		})
 
 		// Apply automatic layout using dagre
-		return getLayoutedNodes(rawNodes, initialEdges)
-	}, [diagram.nodes, initialEdges, handleNodeClick])
+		return getLayoutedNodes(allNodes, initialEdges)
+	}, [diagram.nodes, diagram.components, initialEdges, handleNodeClick, handleComponentClick])
 
 	const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
 	const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -173,6 +240,10 @@ export function DiagramViewer({ diagram, onOpenFile, onSaveDiagram }: DiagramVie
 
 	const handleCloseEdgeModal = () => {
 		setSelectedEdge(null)
+	}
+
+	const handleCloseComponentModal = () => {
+		setSelectedComponent(null)
 	}
 
 	const handleExport = () => {
@@ -237,6 +308,9 @@ export function DiagramViewer({ diagram, onOpenFile, onSaveDiagram }: DiagramVie
 
 			{/* Edge Detail Modal */}
 			<EdgeDetailModal edge={selectedEdge} onClose={handleCloseEdgeModal} />
+
+			{/* Component Detail Modal */}
+			<ComponentDetailModal component={selectedComponent} onClose={handleCloseComponentModal} />
 		</div>
 	)
 }

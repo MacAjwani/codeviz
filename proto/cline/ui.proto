@@ -71,6 +71,7 @@ enum ClineSay {
   HOOK_OUTPUT_STREAM = 31;
   COMMAND_PERMISSION_DENIED = 32;
   TRACE_CODE_FLOW = 33;
+  ARCHITECTURE_DIAGRAM = 34;
 }
 
 // Enum for ClineSayTool tool types

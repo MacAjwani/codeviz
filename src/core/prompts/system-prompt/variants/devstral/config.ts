@@ -53,6 +53,7 @@ export const config = createVariant(ModelFamily.DEVSTRAL)
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.TRACE_CODE_FLOW,
+		ClineDefaultTool.GENERATE_ARCH_DIAGRAM,
 		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({

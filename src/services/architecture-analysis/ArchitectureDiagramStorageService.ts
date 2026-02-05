@@ -1,0 +1,222 @@
+/**
+ * Storage service for architecture diagrams and repository inventory.
+ *
+ * Handles persistence of:
+ * - RepoInventory (cached analysis results)
+ * - ClusterGraph (LLM-generated clusters)
+ *
+ * Storage layout:
+ * .vscode/codeviz/
+ * ├── diagrams/               # Code flow diagrams (existing)
+ * └── architecture/           # NEW
+ *     ├── inventory.json      # Cached RepoInventory
+ *     └── clusters/           # Saved ClusterGraph JSONs
+ *         └── {id}.json
+ */
+
+import * as fs from "fs/promises"
+import * as path from "path"
+import type { ClusterGraph, ClusterGraphInfo, RepoInventory } from "@/shared/architecture-visualization/types"
+
+const STORAGE_BASE = ".vscode/codeviz"
+const ARCHITECTURE_DIR = "architecture"
+const INVENTORY_FILE = "inventory.json"
+const CLUSTERS_DIR = "clusters"
+
+export class ArchitectureDiagramStorageService {
+	private workspaceRoot: string
+
+	constructor(workspaceRoot: string) {
+		this.workspaceRoot = workspaceRoot
+	}
+
+	// ============================================================================
+	// Path Helpers
+	// ============================================================================
+
+	private getArchitectureDir(): string {
+		return path.join(this.workspaceRoot, STORAGE_BASE, ARCHITECTURE_DIR)
+	}
+
+	private getInventoryPath(): string {
+		return path.join(this.getArchitectureDir(), INVENTORY_FILE)
+	}
+
+	private getClustersDir(): string {
+		return path.join(this.getArchitectureDir(), CLUSTERS_DIR)
+	}
+
+	private getClusterGraphPath(id: string): string {
+		return path.join(this.getClustersDir(), `${id}.json`)
+	}
+
+	private async ensureDirectories(): Promise<void> {
+		const clustersDir = this.getClustersDir()
+		await fs.mkdir(clustersDir, { recursive: true })
+	}
+
+	// ============================================================================
+	// Inventory Cache Operations
+	// ============================================================================
+
+	/**
+	 * Save inventory to cache.
+	 */
+	async saveInventoryCache(inventory: RepoInventory): Promise<void> {
+		await this.ensureDirectories()
+
+		const inventoryPath = this.getInventoryPath()
+		await fs.writeFile(inventoryPath, JSON.stringify(inventory, null, 2), "utf-8")
+
+		console.log(`[ArchitectureStorage] Saved inventory cache: ${inventory.files.length} files`)
+	}
+
+	/**
+	 * Load inventory from cache (if exists).
+	 */
+	async loadInventoryCache(): Promise<RepoInventory | null> {
+		const inventoryPath = this.getInventoryPath()
+
+		try {
+			const content = await fs.readFile(inventoryPath, "utf-8")
+			const inventory = JSON.parse(content) as RepoInventory
+
+			console.log(`[ArchitectureStorage] Loaded inventory cache: ${inventory.files.length} files`)
+			return inventory
+		} catch (error) {
+			// File doesn't exist or is invalid
+			return null
+		}
+	}
+
+	/**
+	 * Check if inventory cache exists.
+	 */
+	async hasInventoryCache(): Promise<boolean> {
+		const inventoryPath = this.getInventoryPath()
+		try {
+			await fs.access(inventoryPath)
+			return true
+		} catch {
+			return false
+		}
+	}
+
+	/**
+	 * Delete inventory cache (force re-analysis).
+	 */
+	async invalidateInventoryCache(): Promise<void> {
+		const inventoryPath = this.getInventoryPath()
+
+		try {
+			await fs.unlink(inventoryPath)
+			console.log(`[ArchitectureStorage] Invalidated inventory cache`)
+		} catch (error) {
+			// File doesn't exist, nothing to do
+		}
+	}
+
+	// ============================================================================
+	// Cluster Graph Operations
+	// ============================================================================
+
+	/**
+	 * Generate a unique ID for a cluster graph.
+	 */
+	generateClusterGraphId(): string {
+		const timestamp = Date.now()
+		const random = Math.random().toString(36).substring(2, 8)
+		return `arch_${timestamp}_${random}`
+	}
+
+	/**
+	 * Save a cluster graph to disk.
+	 * @returns The cluster graph ID
+	 */
+	async saveClusterGraph(clusterGraph: ClusterGraph): Promise<string> {
+		await this.ensureDirectories()
+
+		// Generate ID if not present
+		const id = clusterGraph.id || this.generateClusterGraphId()
+		const graphWithId = { ...clusterGraph, id }
+
+		const graphPath = this.getClusterGraphPath(id)
+		await fs.writeFile(graphPath, JSON.stringify(graphWithId, null, 2), "utf-8")
+
+		console.log(`[ArchitectureStorage] Saved cluster graph: ${id} (${graphWithId.clusters.length} clusters)`)
+		return id
+	}
+
+	/**
+	 * Load a cluster graph by ID.
+	 */
+	async loadClusterGraph(id: string): Promise<ClusterGraph | null> {
+		const graphPath = this.getClusterGraphPath(id)
+
+		try {
+			const content = await fs.readFile(graphPath, "utf-8")
+			const clusterGraph = JSON.parse(content) as ClusterGraph
+
+			console.log(`[ArchitectureStorage] Loaded cluster graph: ${id}`)
+			return clusterGraph
+		} catch (error) {
+			console.warn(`[ArchitectureStorage] Failed to load cluster graph ${id}:`, error)
+			return null
+		}
+	}
+
+	/**
+	 * List all saved cluster graphs.
+	 */
+	async listClusterGraphs(): Promise<ClusterGraphInfo[]> {
+		const clustersDir = this.getClustersDir()
+
+		try {
+			const files = await fs.readdir(clustersDir)
+			const jsonFiles = files.filter((f) => f.endsWith(".json"))
+
+			const infos: ClusterGraphInfo[] = []
+
+			for (const file of jsonFiles) {
+				try {
+					const filePath = path.join(clustersDir, file)
+					const content = await fs.readFile(filePath, "utf-8")
+					const graph = JSON.parse(content) as ClusterGraph
+
+					infos.push({
+						id: graph.id || file.replace(".json", ""),
+						createdAt: graph.metadata?.timestamp || 0,
+						clusterCount: graph.clusters.length,
+						fileCount: graph.clusters.reduce((sum, c) => sum + c.files.length, 0),
+					})
+				} catch (error) {
+					console.warn(`[ArchitectureStorage] Failed to read cluster graph ${file}:`, error)
+				}
+			}
+
+			// Sort by creation time (newest first)
+			infos.sort((a, b) => b.createdAt - a.createdAt)
+
+			return infos
+		} catch (error) {
+			// Directory doesn't exist yet
+			return []
+		}
+	}
+
+	/**
+	 * Delete a cluster graph by ID.
+	 */
+	async deleteClusterGraph(id: string): Promise<boolean> {
+		const graphPath = this.getClusterGraphPath(id)
+
+		try {
+			await fs.unlink(graphPath)
+			console.log(`[ArchitectureStorage] Deleted cluster graph: ${id}`)
+			return true
+		} catch (error) {
+			console.warn(`[ArchitectureStorage] Failed to delete cluster graph ${id}:`, error)
+			return false
+		}
+	}
+}

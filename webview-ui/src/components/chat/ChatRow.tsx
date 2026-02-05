@@ -711,6 +711,29 @@ export const ChatRowContent = memo(
 							</div>
 						</div>
 					)
+				case "generateArchitectureDiagram":
+					return (
+						<div>
+							<div className={HEADER_CLASSNAMES}>
+								<WorkflowIcon className="size-2" />
+								<span className="font-bold">
+									{message.type === "ask"
+										? "Cline wants to generate an architecture diagram:"
+										: "Cline generated an architecture diagram:"}
+								</span>
+							</div>
+							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs py-2 px-2.5">
+								<div className="ph-no-capture">
+									<div className="font-medium">{tool.path || "Current workspace"}</div>
+									{tool.clusteringHint && (
+										<div className="text-description text-xs mt-1">
+											<span className="font-semibold">Clustering hint:</span> {tool.clusteringHint}
+										</div>
+									)}
+								</div>
+							</div>
+						</div>
+					)
 				default:
 					return <InvisibleSpacer />
 			}
@@ -1276,6 +1299,99 @@ export const ChatRowContent = memo(
 												View Diagram
 											</button>
 										)}
+									</div>
+								)}
+							</div>
+						)
+					}
+					case "architecture_diagram": {
+						let archInfo: {
+							status: "loading_cache" | "analyzing" | "clustering" | "complete" | "error"
+							message?: string
+							progress?: { current: number; total: number }
+							diagramId?: string
+							clusterCount?: number
+							fileCount?: number
+							error?: string
+						} = {
+							status: "analyzing",
+						}
+						try {
+							if (message.text) {
+								archInfo = JSON.parse(message.text)
+							}
+						} catch {
+							// Use defaults if parsing fails
+						}
+
+						// Check if analysis was interrupted
+						const wasCancelled =
+							(archInfo.status === "analyzing" || archInfo.status === "clustering") &&
+							(!isLast ||
+								lastModifiedMessage?.ask === "resume_task" ||
+								lastModifiedMessage?.ask === "resume_completed_task")
+						const isInProgress =
+							(archInfo.status === "loading_cache" ||
+								archInfo.status === "analyzing" ||
+								archInfo.status === "clustering") &&
+							!wasCancelled
+						const isComplete = archInfo.status === "complete"
+						const isError = archInfo.status === "error"
+
+						return (
+							<div className="bg-code flex flex-col border border-editor-group-border rounded-sm py-2.5 px-3">
+								<div className="flex items-center">
+									{isInProgress ? (
+										<ProgressIndicator />
+									) : isError ? (
+										<CircleXIcon className="size-2 mr-2 text-error" />
+									) : wasCancelled ? (
+										<CircleSlashIcon className="size-2 mr-2" />
+									) : (
+										<CheckIcon className="size-2 mr-2 text-success" />
+									)}
+									<span className="font-semibold">
+										{isInProgress
+											? archInfo.status === "loading_cache"
+												? "Loading cached workspace analysis"
+												: archInfo.status === "analyzing"
+													? "Analyzing workspace architecture"
+													: "Clustering components with LLM"
+											: isError
+												? "Architecture analysis failed"
+												: wasCancelled
+													? "Architecture analysis cancelled"
+													: "Architecture diagram generated"}
+									</span>
+								</div>
+
+								{/* Show status message */}
+								{isInProgress && archInfo.message && (
+									<div className="opacity-80 ml-6 mt-1.5 text-xs">{archInfo.message}</div>
+								)}
+
+								{/* Show progress */}
+								{isInProgress && archInfo.progress && (
+									<div className="opacity-70 ml-6 mt-1 text-xs">
+										Progress: {archInfo.progress.current} / {archInfo.progress.total} files
+									</div>
+								)}
+
+								{/* Show error */}
+								{isError && archInfo.error && (
+									<div className="opacity-80 ml-6 mt-1.5 text-error break-words">{archInfo.error}</div>
+								)}
+
+								{/* Show completion info */}
+								{isComplete && archInfo.clusterCount !== undefined && (
+									<div className="ml-6 mt-2">
+										<div className="opacity-80 text-xs">
+											{archInfo.clusterCount} cluster{archInfo.clusterCount !== 1 ? "s" : ""} created from{" "}
+											{archInfo.fileCount} files
+										</div>
+										<div className="opacity-70 mt-1 text-xs">
+											View the diagram in the "Architecture Diagram" panel in the sidebar
+										</div>
 									</div>
 								)}
 							</div>
