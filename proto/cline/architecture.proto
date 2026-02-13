@@ -27,6 +27,12 @@ service ArchitectureService {
 
   // Invalidate inventory cache (force re-analysis on next generation)
   rpc invalidateInventoryCache(EmptyRequest) returns (Empty);
+
+  // Execution trace operations
+  rpc saveExecutionTrace(SaveExecutionTraceRequest) returns (String);
+  rpc loadExecutionTrace(StringRequest) returns (ExecutionTraceData);
+  rpc listExecutionTraces(ListExecutionTracesRequest) returns (ExecutionTraceList);
+  rpc deleteExecutionTrace(StringRequest) returns (Empty);
 }
 
 // Request for generating architecture diagram
@@ -58,6 +64,7 @@ message ArchitectureDiagramInfo {
   int64 created_at = 2;
   int32 cluster_count = 3;
   int32 file_count = 4;
+  string name = 5; // LLM-generated descriptive name
 }
 
 // Cached inventory data
@@ -66,4 +73,39 @@ message InventoryData {
   int64 cached_at = 2;
   int32 file_count = 3;
   int32 total_loc = 4;
+}
+
+// Request for saving execution trace
+message SaveExecutionTraceRequest {
+  Metadata metadata = 1;
+  string trace_json = 2; // ComponentExecutionTrace as JSON
+}
+
+// Execution trace data
+message ExecutionTraceData {
+  string id = 1;
+  string trace_json = 2; // ComponentExecutionTrace as JSON
+  int64 created_at = 3;
+  int32 step_count = 4;
+}
+
+// Request for listing execution traces
+message ListExecutionTracesRequest {
+  Metadata metadata = 1;
+  string base_diagram_id = 2; // Optional filter by base diagram ID
+}
+
+// List of execution traces
+message ExecutionTraceList {
+  repeated ExecutionTraceInfo traces = 1;
+}
+
+// Execution trace summary information
+message ExecutionTraceInfo {
+  string id = 1;
+  string base_diagram_id = 2;
+  string entry_point = 3;
+  int64 created_at = 4;
+  int32 step_count = 5;
+  string name = 6; // LLM-generated descriptive name
 }

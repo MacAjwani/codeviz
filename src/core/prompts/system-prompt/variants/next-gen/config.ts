@@ -66,8 +66,9 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.GENERATE_EXPLANATION,
-		ClineDefaultTool.TRACE_CODE_FLOW,
+		// ClineDefaultTool.TRACE_CODE_FLOW, // DISABLED - use TRACE_COMPONENT_EXECUTION
 		ClineDefaultTool.GENERATE_ARCH_DIAGRAM,
+		ClineDefaultTool.TRACE_COMPONENT_EXECUTION,
 		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({

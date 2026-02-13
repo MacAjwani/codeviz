@@ -205,15 +205,18 @@ export interface ClineSayTool {
 		| "webSearch"
 		| "summarizeTask"
 		| "useSkill"
-		| "traceCodeFlow"
+		| "traceCodeFlow" // Keep type for handler, but tool is disabled in registration
 		| "generateArchitectureDiagram"
+		| "traceComponentExecution"
 	path?: string
 	clusteringHint?: string
+	baseDiagramId?: string
 	entryPoint?: string
 	description?: string
 	maxDepth?: string
 	nodeCount?: number
 	edgeCount?: number
+	stepCount?: number
 	diff?: string
 	content?: string
 	regex?: string

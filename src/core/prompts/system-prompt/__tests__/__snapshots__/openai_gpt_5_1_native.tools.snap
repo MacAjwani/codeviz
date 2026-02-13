@@ -420,48 +420,8 @@
   {
     "type": "function",
     "function": {
-      "name": "trace_code_flow",
-      "description": "Create an entity-relationship data flow diagram showing how data moves through a system. Identifies entities (User, UI elements, methods, APIs, databases) and data flows between them. Use this to visualize authentication flows, feature workflows, or request lifecycles. The diagram shows WHAT communicates with WHAT, not step-by-step execution.",
-      "strict": false,
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "description": {
-            "type": "string",
-            "description": "Brief description of what this data flow diagram represents."
-          },
-          "entry_point": {
-            "type": "string",
-            "description": "The starting entity for this flow. Use 'User' for user-initiated flows, or name the first entity that triggers the flow."
-          },
-          "entities": {
-            "type": "string",
-            "description": "JSON array of entity objects.\n\n▶ REQUIRED FIELDS (3):\n\n1. \"label\" (string) - Specific entity name with high granularity\n   GOOD: \"AuthService.login()\", \"submitButton.onClick\"\n   BAD: \"AuthService\", \"submitButton\"\n\n2. \"type\" (string) - EXACTLY one of these 9 values (lowercase with underscores):\n   • user - the person using the app\n   • ui_element - buttons, inputs, forms\n   • component - React/Vue/Angular components\n   • method - functions, class methods\n   • api_endpoint - REST/GraphQL endpoints\n   • database - databases, tables\n   • external_service - third-party APIs\n   • event_handler - event listeners, callbacks\n   • state_manager - Redux, Context, stores\n\n3. \"entityPurpose\" (string) - What this entity does in the system (1-2 sentences)\n\n▶ OPTIONAL FIELDS (3):\n\n4. \"filePath\" (string) - Relative path to source file (e.g., \"src/services/AuthService.ts\")\n5. \"lineNumber\" (number) - Line where entity starts\n6. \"componentLayer\" (string) - System component/layer this entity belongs to (e.g., \"View\", \"Controller\", \"Model\", \"Data Access\", \"External Services\")\n\n▶ WHEN TO OMIT filePath/lineNumber:\n- External services (e.g., \"Stripe API\", \"PostgreSQL\")\n- Browser APIs (e.g., \"localStorage\")\n- Third-party libraries\n\n▶ VALIDATION:\n- Type must be ONE of the 9 values above (NOT \"Function\", \"UI Element\", \"Event Listener\")\n- Labels must be unique across all entities\n- Use specific names, not generic categories"
-          },
-          "flows": {
-            "type": "string",
-            "description": "JSON array of flow objects describing data movement.\n\n▶ REQUIRED FIELDS (6):\n\n1. \"fromEntity\" (string) - Source entity LABEL (must match an entity label exactly)\n2. \"toEntity\" (string) - Target entity LABEL (must match an entity label exactly)\n3. \"trigger\" (string) - What causes this flow (e.g., \"click event\", \"function call\")\n4. \"dataDescription\" (string) - What data is passed\n5. \"dataFormat\" (string) - Format of data (e.g., \"JSON\", \"DOM Event\", \"Function parameters\")\n6. \"sampleData\" (string) - Example showing field structure (REQUIRED)\n\n▶ CRITICAL - LABEL MATCHING:\n- Use entity LABELS, NOT entity IDs\n- If entity label is \"AuthService.login()\", flow must use \"AuthService.login()\"\n- Matching is case-sensitive and character-exact\n- Example: fromEntity: \"loginButton.onClick\" (NOT \"entity-1-loginbutton-onclick\")\n\n▶ SAMPLE DATA RULES:\n- Show field names and example values\n- Objects: { username: \"john@example.com\", password: \"***\", rememberMe: true }\n- Events: MouseEvent { type: \"click\", clientX: 100, clientY: 200, target: <button> }\n- Arrays: [{ id: 1, name: \"Item\", status: \"active\" }]\n- SQL: SELECT id, email, created_at FROM users WHERE username = 'john'"
-          },
-          "task_progress": {
-            "type": "string",
-            "description": "A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)"
-          }
-        },
-        "required": [
-          "description",
-          "entry_point",
-          "entities",
-          "flows"
-        ],
-        "additionalProperties": false
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
       "name": "generate_architecture_diagram",
-      "description": "Analyze workspace and generate an interactive architecture diagram with clustered components. Creates a high-level view of the codebase architecture by grouping files into logical components (5-12 clusters) based on responsibility and dependencies. Use this to understand system structure, identify architectural layers, and visualize component relationships.",
+      "description": "Analyze workspace and generate a C4 Component diagram (Level C3) with interactive visualization. Creates a high-level view of the codebase architecture by grouping files into logical components (5-12 clusters) based on responsibility and dependencies. Each component includes type classification (controller, service, repository, etc.), technology stack, and responsibilities. Use this to understand system structure, identify architectural layers, and visualize component relationships.",
       "strict": false,
       "parameters": {
         "type": "object",
@@ -484,6 +444,41 @@
           }
         },
         "required": [],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "trace_component_execution",
+      "description": "PREFERRED TOOL for 'walk me through' questions. Traces execution flow through architecture components with animated visualization, step-by-step walkthrough, code references, and example data. Use this when user asks 'what happens when X', 'show me the flow', 'walk me through Y', etc.",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "base_diagram_id": {
+            "type": "string",
+            "description": "ID of the existing architecture diagram to trace through. Must be a valid cluster graph ID."
+          },
+          "entry_point": {
+            "type": "string",
+            "description": "Natural language description of the starting event or action. Be specific about what triggers the execution flow."
+          },
+          "execution_steps": {
+            "type": "string",
+            "description": "JSON array of execution step objects. Each step represents what happens at a component.\n\n▶ REQUIRED FIELDS (6):\n\n1. \"stepNumber\" (number) - Sequential step number starting from 1\n2. \"componentId\" (string) - Cluster ID from base diagram (MUST match exactly)\n3. \"description\" (string) - What happens at this step (2-3 sentences)\n4. \"codeReference\" (object) - Where this happens in code:\n   - filePath (string): Relative path to file\n   - lineNumber (number, optional): Line number\n   - snippet (string, optional): 3-5 line code excerpt\n5. \"exampleData\" (object) - Data at this step:\n   - format (string): Data format (e.g., \"JSON\", \"SQL Query\", \"HTTP Request\")\n   - sample (string): Example data showing structure\n6. \"transitionTo\" (string | null) - Next component ID, or null if final step\n\n▶ VALIDATION RULES:\n- componentId must exist in base diagram's cluster list\n- transitionTo (if not null) should match next step's componentId\n- Steps should form a logical execution path\n- File paths should be valid and exist in workspace\n\n▶ EXAMPLE DATA GUIDELINES:\n- Show realistic data structures\n- Include field names and types\n- For HTTP: { \"method\": \"POST\", \"body\": {...}, \"headers\": {...} }\n- For SQL: SELECT id, name FROM users WHERE id = 123\n- For Events: MouseEvent { type: \"click\", target: <button> }"
+          },
+          "task_progress": {
+            "type": "string",
+            "description": "A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)"
+          }
+        },
+        "required": [
+          "base_diagram_id",
+          "entry_point",
+          "execution_steps"
+        ],
         "additionalProperties": false
       }
     }

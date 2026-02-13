@@ -70,8 +70,9 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.GENERATE_EXPLANATION,
-		ClineDefaultTool.TRACE_CODE_FLOW,
+		// ClineDefaultTool.TRACE_CODE_FLOW, // DISABLED - use TRACE_COMPONENT_EXECUTION
 		ClineDefaultTool.GENERATE_ARCH_DIAGRAM,
+		ClineDefaultTool.TRACE_COMPONENT_EXECUTION,
 		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({

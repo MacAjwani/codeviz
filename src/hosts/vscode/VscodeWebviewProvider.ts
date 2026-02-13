@@ -1,5 +1,6 @@
 import { sendShowWebviewEvent } from "@core/controller/ui/subscribeToShowWebview"
 import { WebviewProvider } from "@core/webview"
+import * as path from "path"
 import * as vscode from "vscode"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "@/core/controller/grpc-handler"
 import { HostProvider } from "@/hosts/host-provider"
@@ -158,6 +159,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	 * @param webview A reference to the extension webview
 	 */
 	async handleWebviewMessage(message: WebviewMessage) {
+		console.log("here")
 		const postMessageToWebview = (response: ExtensionMessage) => this.postMessageToWebview(response)
 
 		switch (message.type) {
@@ -170,6 +172,29 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			case "grpc_request_cancel": {
 				if (message.grpc_request_cancel) {
 					await handleGrpcRequestCancel(postMessageToWebview, message.grpc_request_cancel)
+				}
+				break
+			}
+			case "openFile": {
+				const filePath = message.filePath
+				console.log("[VscodeWebviewProvider] Opening file:", filePath)
+				if (filePath) {
+					try {
+						const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
+						if (workspaceFolder) {
+							const absolutePath = path.isAbsolute(filePath)
+								? filePath
+								: path.join(workspaceFolder.uri.fsPath, filePath)
+							const fileUri = vscode.Uri.file(absolutePath)
+							await vscode.window.showTextDocument(fileUri)
+							console.log("[VscodeWebviewProvider] Successfully opened file:", filePath)
+						} else {
+							console.error("[VscodeWebviewProvider] No workspace folder found")
+						}
+					} catch (error) {
+						console.error("[VscodeWebviewProvider] Failed to open file:", error)
+						vscode.window.showErrorMessage(`Failed to open file: ${filePath}`)
+					}
 				}
 				break
 			}

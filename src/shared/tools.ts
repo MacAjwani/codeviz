@@ -34,6 +34,7 @@ export enum ClineDefaultTool {
 	USE_SKILL = "use_skill",
 	TRACE_CODE_FLOW = "trace_code_flow",
 	GENERATE_ARCH_DIAGRAM = "generate_architecture_diagram",
+	TRACE_COMPONENT_EXECUTION = "trace_component_execution",
 }
 
 // Array of all tool names for compatibility
@@ -52,6 +53,7 @@ export const READ_ONLY_TOOLS = [
 	ClineDefaultTool.WEB_SEARCH,
 	ClineDefaultTool.WEB_FETCH,
 	ClineDefaultTool.USE_SKILL,
-	ClineDefaultTool.TRACE_CODE_FLOW,
+	// ClineDefaultTool.TRACE_CODE_FLOW, // DISABLED - use TRACE_COMPONENT_EXECUTION instead
 	ClineDefaultTool.GENERATE_ARCH_DIAGRAM,
+	ClineDefaultTool.TRACE_COMPONENT_EXECUTION,
 ] as const

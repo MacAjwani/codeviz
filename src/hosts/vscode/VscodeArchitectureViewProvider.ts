@@ -113,8 +113,18 @@ export class VscodeArchitectureViewProvider implements vscode.WebviewViewProvide
 			if (this.webview) {
 				return this.webview.webview.postMessage(response)
 			}
+			if (VscodeArchitectureViewProvider.currentPanel) {
+				return VscodeArchitectureViewProvider.currentPanel.webview.postMessage(response)
+			}
 			return Promise.resolve(undefined)
 		}
+
+		console.log(
+			"[VscodeArchitectureViewProvider] Received message type:",
+			message.type,
+			"Full message:",
+			JSON.stringify(message),
+		)
 
 		switch (message.type) {
 			case "grpc_request": {
@@ -126,6 +136,50 @@ export class VscodeArchitectureViewProvider implements vscode.WebviewViewProvide
 			case "grpc_request_cancel": {
 				if (message.grpc_request_cancel) {
 					await handleGrpcRequestCancel(postMessageToWebview, message.grpc_request_cancel)
+				}
+				break
+			}
+			case "openFile": {
+				const filePath = message.filePath
+				const lineNumber = message.lineNumber
+				console.log("[VscodeArchitectureViewProvider] Opening file:", filePath, lineNumber ? `at line ${lineNumber}` : "")
+				if (filePath) {
+					try {
+						const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
+						if (workspaceFolder) {
+							const absolutePath = path.isAbsolute(filePath)
+								? filePath
+								: path.join(workspaceFolder.uri.fsPath, filePath)
+							const fileUri = vscode.Uri.file(absolutePath)
+
+							// Open document with optional line selection
+							if (lineNumber !== undefined && lineNumber > 0) {
+								const document = await vscode.workspace.openTextDocument(fileUri)
+								const line = Math.max(0, lineNumber - 1) // Convert to 0-based index
+								const position = new vscode.Position(line, 0)
+								const selection = new vscode.Selection(position, position)
+
+								await vscode.window.showTextDocument(document, {
+									selection,
+									viewColumn: vscode.ViewColumn.One,
+								})
+
+								// Reveal the line in the center of the viewport
+								const editor = vscode.window.activeTextEditor
+								if (editor) {
+									editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter)
+								}
+							} else {
+								await vscode.window.showTextDocument(fileUri)
+							}
+							console.log("[VscodeArchitectureViewProvider] Successfully opened file:", filePath)
+						} else {
+							console.error("[VscodeArchitectureViewProvider] No workspace folder found")
+						}
+					} catch (error) {
+						console.error("[VscodeArchitectureViewProvider] Failed to open file:", error)
+						vscode.window.showErrorMessage(`Failed to open file: ${filePath}`)
+					}
 				}
 				break
 			}

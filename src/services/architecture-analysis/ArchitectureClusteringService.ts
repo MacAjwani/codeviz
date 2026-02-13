@@ -7,6 +7,7 @@ import crypto from "crypto"
 import type { ApiHandler } from "@/core/api"
 import { ClusterGraphSchema } from "@/shared/architecture-visualization/schemas"
 import type { Cluster, ClusterGraph, RepoInventory } from "@/shared/architecture-visualization/types"
+import { C4ComponentDetectionService } from "./C4ComponentDetectionService"
 
 export class ArchitectureClusteringService {
 	/**
@@ -63,12 +64,17 @@ export class ArchitectureClusteringService {
 					throw new Error(`Cluster validation failed: ${validation.errors.join(", ")}`)
 				}
 
+				// Enrich with C4 detection if LLM didn't provide full metadata
+				this.enrichWithC4Detection(clusterGraph, inventory)
+
 				// Success! Add metadata
 				clusterGraph.id = this.generateClusterGraphId()
 				clusterGraph.metadata = {
 					timestamp: Date.now(),
 					clusterCount: clusterGraph.clusters.length,
 					sourceInventoryHash: this.hashInventory(inventory),
+					schemaVersion: 2,
+					c4Level: "C3",
 				}
 
 				console.log(`[ArchitectureClustering] Successfully generated ${clusterGraph.clusters.length} clusters`)
@@ -115,7 +121,16 @@ export class ArchitectureClusteringService {
 				.slice(0, 1000), // Limit to 1000 edges
 		}
 
-		return `You are analyzing a codebase to create an architecture diagram.
+		return `You are analyzing a codebase to create a C4 Component diagram (Level 3).
+
+C4 MODEL OVERVIEW:
+The C4 model provides 4 levels of architectural diagrams:
+- C1: System Context - How the system fits in the wider world
+- C2: Container - High-level technology choices (apps, databases, services)
+- C3: Component - Logical components within a container (WHAT WE'RE CREATING)
+- C4: Code - Class/function level details
+
+A COMPONENT is a grouping of related functionality encapsulated behind a well-defined interface. Components should represent major architectural building blocks, not individual files.
 
 CRITICAL CONSTRAINTS:
 1. You MUST ONLY reference file paths from the provided inventory below
@@ -128,20 +143,43 @@ CRITICAL CONSTRAINTS:
 8. IGNORE type-only imports when analyzing dependencies - focus on actual code dependencies
 
 TASK:
-Group files into 5-12 logical clusters based on their responsibility and RUNTIME dependencies.
-Each cluster represents a major architectural component that executes code at runtime.
-Exclude files that are only used for configuration or type definitions.
+Group files into 5-12 C4 components based on their responsibility and RUNTIME dependencies.
+Each component should have:
+- A clear componentType (see list below)
+- 2-5 key responsibilities
+- Technology stack information (framework, libraries used)
+
+C4 COMPONENT TYPES (you MUST use one of these):
+- controller: HTTP request handlers, API routes, REST controllers
+- service: Business logic, orchestration, application services
+- repository: Data access layer, database abstraction, DAOs
+- component: UI components (React, Vue, Angular components)
+- gateway: External API clients, third-party integrations
+- database: Database schemas, ORM models, entity definitions
+- external_system: Integration with external systems
+- message_queue: Event queues, message brokers, pub/sub
+- cache: Cache layer (Redis, Memcached, in-memory)
+- middleware: Request/response middleware, interceptors
+- utility: Helper functions, shared utilities
+- config: Configuration management, environment setup
 
 OUTPUT JSON SCHEMA (output ONLY these fields, no metadata or id at top level):
 {
   "clusters": [
     {
       "id": "lowercase-with-hyphens",
-      "label": "Human-Readable Label",
+      "label": "Business-Focused Label (e.g., 'User Authentication API', 'Payment Processing Service')",
       "description": "1-2 sentence summary of this cluster's responsibility",
       "files": ["path/to/file1.ts", "path/to/file2.ts"],
       "keyFiles": ["path/to/file1.ts"],
-      "layer": "presentation | business | data | infrastructure"
+      "layer": "presentation | business | data | infrastructure",
+      "componentType": "controller | service | repository | component | gateway | database | external_system | message_queue | cache | middleware | utility | config",
+      "responsibilities": ["Responsibility 1", "Responsibility 2", "Responsibility 3"],
+      "technology": {
+        "language": "TypeScript",
+        "framework": "React | Express | NestJS | etc.",
+        "libraries": ["axios", "zod", "rxjs"]
+      }
     }
   ],
   "clusterEdges": [
@@ -151,6 +189,9 @@ OUTPUT JSON SCHEMA (output ONLY these fields, no metadata or id at top level):
       "target": "cluster2-id",
       "weight": 12,
       "label": "API calls",
+      "relationshipType": "uses | calls | renders | reads_from | writes_to | publishes_to | subscribes_to",
+      "protocol": "HTTP | gRPC | SQL | Redis | REST | GraphQL | WebSocket | AMQP | Internal",
+      "description": "REQUIRED: Natural language description of what is being communicated (e.g., 'Requests user account data', 'Validates authentication tokens', 'Fetches order history')",
       "topDependencies": [
         { "from": "auth/AuthService.ts", "to": "api/userRoutes.ts", "count": 5 }
       ]
@@ -165,17 +206,126 @@ OUTPUT JSON SCHEMA (output ONLY these fields, no metadata or id at top level):
 
 IMPORTANT: Do NOT include "id" or "metadata" fields at the root level. Only output the three fields shown above.
 
-CLUSTERING STRATEGY:
-- Group by responsibility: authentication, API routes, UI components, data access, utilities
-- Consider file paths: src/auth/* likely belong together
-- Use RUNTIME dependencies: files with many cross-imports should cluster together
-- Ignore type-only imports (marked with isTypeOnly: true)
-- Skip files that only export types/interfaces (no executable code)
-- Skip configuration files entirely
-- Aim for 5-12 clusters (not too granular, not too coarse)
-- Prefer balanced cluster sizes (avoid 1 file vs 100 files in one cluster)
-- Make clusters independently understandable and meaningful
+RELATIONSHIP TYPES:
+- uses: Generic usage relationship
+- calls: Synchronous function/method invocation
+- renders: UI component rendering another component
+- reads_from: Reading data from a data store
+- writes_to: Writing data to a data store
+- publishes_to: Publishing messages to a queue
+- subscribes_to: Subscribing to messages from a queue
+
+PROTOCOLS:
+- HTTP: HTTP/HTTPS communication
+- REST: RESTful API calls
+- gRPC: gRPC protocol
+- GraphQL: GraphQL queries/mutations
+- WebSocket: WebSocket connections
+- SQL: Database queries
+- Redis: Redis protocol
+- AMQP: Message queue protocol
+- Internal: In-process function calls
+
+CLUSTERING STRATEGY (C4 Component Patterns):
+1. API Layer (controllers): Group HTTP request handlers together
+   - Express routes, NestJS controllers, API endpoints
+   - componentType: "controller"
+
+2. Business Logic (services): Group orchestration and business logic
+   - Application services, domain services, managers
+   - componentType: "service"
+
+3. Data Access (repositories): Group database interaction code
+   - Repositories, DAOs, data access objects
+   - componentType: "repository"
+
+4. UI Layer (components): Group UI rendering code
+   - React components, Vue components, view templates
+   - componentType: "component"
+
+5. Integration (gateways): Group external API clients
+   - Third-party API clients, HTTP clients, SDK wrappers
+   - componentType: "gateway"
+
+CLUSTERING BEST PRACTICES:
+- Use file paths as hints: src/controllers/* → controller component
+- Use imports as hints: prisma imports → repository, axios → gateway
+- Group by C4 component type first, then by business domain
+- Aim for 5-12 components (not too granular, not too coarse)
+- Prefer balanced component sizes
+- Make components independently understandable
 - Focus on components that represent actual data flow and execution
+- Identify key responsibilities (2-5 bullet points per component)
+- Detect technology stack from imports (React, Express, Prisma, etc.)
+
+CRITICAL: NAMING CONVENTIONS
+
+Component Labels (cluster.label):
+- MUST be business-domain focused, not code-centric
+- MUST be understandable by non-technical stakeholders (product managers, business analysts)
+- MUST accurately reflect the file locations (frontend vs backend)
+- Can naturally incorporate component type (e.g., "User Authentication API", "Payment Service")
+- Avoid code artifact names (e.g., "auth-service" → "Authentication Service")
+- If files are in frontend/client directories, DO NOT use "Backend" in the label
+- If files are in backend/server directories, DO NOT use "Frontend" in the label
+
+GOOD Examples:
+✓ "User Authentication API" (not "AuthController" or "auth-service")
+✓ "Payment Processing Service" (not "PaymentService" or "payment-svc")
+✓ "Order Database" (not "order-repository" or "OrderModel")
+✓ "Email Notification Service" (not "EmailService" or "email-sender")
+✓ "Customer Account API" (not "AccountController")
+✓ "API Client" (for frontend/src/services/ApiService.ts - NOT "Backend API Client")
+✓ "Frontend Services" (for frontend/* files - NOT "Backend Services")
+
+BAD Examples:
+✗ "auth-service" (code-centric)
+✗ "UserController" (implementation detail)
+✗ "order-repo" (abbreviation)
+✗ "payment-svc" (technical abbreviation)
+✗ "Backend API Client" (when files are in frontend/ directory)
+✗ "Frontend Controllers" (when files are in backend/ directory)
+
+Component Descriptions (cluster.description):
+- MUST be business-focused: explain WHAT the component does for users/system, not HOW it's implemented
+- MUST be understandable by non-technical stakeholders
+- Should be 1-3 sentences that describe the business purpose
+- Avoid implementation details and technical jargon
+
+GOOD Examples:
+✓ "Single-page app that provides Internet banking functionality to customers via their web browser."
+✓ "API endpoint for access to PDF statements."
+✓ "API endpoint for customer sign in."
+✓ "Sends e-mails to users."
+✓ "Provides access to customer account information."
+
+BAD Examples:
+✗ "Implements user authentication using JWT tokens and bcrypt hashing." (too technical)
+✗ "Extends BaseController and provides CRUD operations." (implementation details)
+✗ "Contains TypeScript interfaces and type definitions." (code artifacts)
+✗ "Uses Express middleware to validate requests." (HOW, not WHAT)
+
+Edge Descriptions (edge.description):
+- MUST be concise: 8 words maximum
+- MUST describe WHAT is being communicated (business purpose), not just the technical relationship
+- Should explain the actual action/data being exchanged
+- Write in natural language that explains the business interaction
+- Focus on the purpose of the communication
+
+GOOD Examples (≤8 words):
+✓ "Requests user account information"
+✓ "Validates authentication credentials"
+✓ "Fetches order history and status"
+✓ "Submits payment transaction data"
+✓ "Sends email notifications to customers"
+✓ "Publishes order confirmation events"
+
+BAD Examples:
+✗ "calls" (too generic)
+✗ "uses" (doesn't explain what)
+✗ "sends data" (vague)
+✗ "API call" (doesn't explain purpose)
+✗ "Delegates todo CRUD operations and business logic execution to the service layer" (too long!)
 
 INVENTORY${truncated ? ` (showing first ${maxFiles} of ${inventory.files.length} files)` : ""}:
 ${JSON.stringify(inventorySummary, null, 2)}
@@ -231,6 +381,75 @@ OUTPUT (JSON only, no markdown code fences):
 		}
 
 		return { valid: errors.length === 0, errors }
+	}
+
+	/**
+	 * Enrich cluster graph with C4 component detection.
+	 * Fills in missing componentType, technology, relationshipType, and protocol fields.
+	 */
+	private enrichWithC4Detection(clusterGraph: ClusterGraph, inventory: RepoInventory): void {
+		const detectionService = new C4ComponentDetectionService()
+
+		// Enrich clusters
+		for (const cluster of clusterGraph.clusters) {
+			// Get files for this cluster
+			const clusterFiles = cluster.files
+				.map((path) => inventory.files.find((f) => f.path === path))
+				.filter(Boolean) as typeof inventory.files
+
+			if (clusterFiles.length === 0) {
+				continue
+			}
+
+			// Detect component type if not provided by LLM
+			if (!cluster.componentType) {
+				// Use first key file or first file in cluster
+				const keyFile =
+					cluster.keyFiles.length > 0 ? inventory.files.find((f) => f.path === cluster.keyFiles[0]) : clusterFiles[0]
+
+				if (keyFile) {
+					cluster.componentType = detectionService.detectComponentType(keyFile)
+				}
+			}
+
+			// Detect technology stack if not provided
+			if (!cluster.technology || Object.keys(cluster.technology).length === 0) {
+				cluster.technology = detectionService.detectTechnologyStack(clusterFiles)
+			}
+
+			// Set version to 2 (C4)
+			cluster.version = 2
+		}
+
+		// Enrich edges
+		for (const edge of clusterGraph.clusterEdges) {
+			const sourceCluster = clusterGraph.clusters.find((c) => c.id === edge.source)
+			const targetCluster = clusterGraph.clusters.find((c) => c.id === edge.target)
+
+			if (!sourceCluster || !targetCluster) {
+				continue
+			}
+
+			// Detect relationship type if not provided
+			if (!edge.relationshipType) {
+				const topDep = edge.topDependencies[0]
+				edge.relationshipType = detectionService.detectRelationshipType(sourceCluster, targetCluster, topDep)
+			}
+
+			// Detect protocol if not provided
+			if (!edge.protocol) {
+				edge.protocol = detectionService.detectProtocol(sourceCluster, targetCluster, edge.topDependencies, inventory)
+			}
+
+			// Generate description if not provided (fallback to business-focused description)
+			if (!edge.description && edge.relationshipType) {
+				edge.description = detectionService.generateEdgeDescription(sourceCluster, targetCluster, edge.relationshipType)
+			}
+		}
+
+		console.log(
+			`[C4 Enrichment] Enhanced ${clusterGraph.clusters.length} clusters and ${clusterGraph.clusterEdges.length} edges`,
+		)
 	}
 
 	/**

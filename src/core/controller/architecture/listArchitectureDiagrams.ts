@@ -23,6 +23,7 @@ export async function listArchitectureDiagrams(controller: Controller, _req: Emp
 			createdAt: diagram.createdAt,
 			clusterCount: diagram.clusterCount,
 			fileCount: diagram.fileCount,
+			name: diagram.name || "",
 		}),
 	)
 

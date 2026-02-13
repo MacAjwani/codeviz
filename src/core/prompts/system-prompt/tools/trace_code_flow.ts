@@ -10,13 +10,33 @@ const GENERIC: ClineToolSpec = {
 	id,
 	name: "trace_code_flow",
 	description:
-		"Create an entity-relationship data flow diagram showing how data moves through a system. Identifies entities (User, UI elements, methods, APIs, databases) and data flows between them. Use this to visualize authentication flows, feature workflows, or request lifecycles. The diagram shows WHAT communicates with WHAT, not step-by-step execution.",
+		"Generate a LOW-LEVEL data model documentation diagram showing entity schemas and database relationships. Creates technical reference diagrams with granular entity types (functions, methods, API endpoints, database tables) for code documentation purposes. This is NOT for execution flow - use trace_component_execution for 'what happens when' questions.",
 	instruction:
-		"CRITICAL REQUIREMENTS:\n" +
+		"⚠️ THIS TOOL IS FOR DATA MODEL DOCUMENTATION ONLY\n" +
+		"Creates static entity-relationship diagrams showing:\n" +
+		"- Database table schemas and relationships\n" +
+		"- API endpoint definitions and request/response structures\n" +
+		"- Low-level function/method entity mappings\n" +
+		"- Technical reference documentation diagrams\n\n" +
+		"▶ NEVER USE THIS TOOL FOR:\n" +
+		"❌ 'Walk me through what happens when...'\n" +
+		"❌ 'Show me the execution flow...'\n" +
+		"❌ 'Trace what happens when I click...'\n" +
+		"❌ 'How does the system process...'\n" +
+		"❌ Any question about execution, flow, or step-by-step processes\n" +
+		"→ For ALL execution/flow questions, use trace_component_execution instead\n\n" +
+		"▶ ONLY USE THIS TOOL FOR:\n" +
+		"✓ Documenting database schemas and table relationships\n" +
+		"✓ Creating API endpoint reference diagrams\n" +
+		"✓ Mapping low-level function signatures and data structures\n" +
+		"✓ Building technical entity-relationship reference documentation\n\n" +
+		"If the user's question contains 'walk', 'flow', 'happens', 'process', 'trace', 'through' - DO NOT use this tool.\n\n" +
+		"▶ ENTITY DOCUMENTATION REQUIREMENTS:\n" +
 		"1. Entity types must be exact lowercase strings with underscores: 'user', 'ui_element', 'component', 'method', 'api_endpoint', 'database', 'external_service', 'event_handler', 'state_manager'\n" +
 		"2. Use high granularity - 'AuthService.login()' not 'AuthService', 'submitButton.onClick' not 'submitButton'\n" +
 		"3. Flows must reference entity LABELS (not IDs) - case-sensitive, character-exact matching\n" +
-		"4. Every flow must include sampleData showing field structure",
+		"4. Every flow must include sampleData showing field structure\n\n" +
+		"▶ ENTITY AND FLOW REQUIREMENTS:",
 	parameters: [
 		{
 			name: "description",
@@ -169,16 +189,20 @@ const NEXT_GEN: ClineToolSpec = {
 	...GENERIC,
 	variant: ModelFamily.NEXT_GEN,
 	description:
-		"Create an entity-relationship data flow diagram showing how data moves through a system. Identifies entities (User, UI elements, methods, APIs, databases) and data flows between them. Use this to visualize authentication flows, feature workflows, or request lifecycles. The diagram shows WHAT communicates with WHAT, not step-by-step execution.",
+		"Generate LOW-LEVEL data model documentation diagrams for technical reference. Shows entity schemas, database relationships, and API endpoint structures. NOT for execution flow visualization - use trace_component_execution for any 'what happens when' or walkthrough questions.",
 	instruction:
 		GENERIC.instruction +
 		"\n\n" +
-		"▶ RECOMMENDED WORKFLOW:\n" +
-		"1. First, identify all entities by reading relevant code files\n" +
-		"2. For each entity, determine its specific type and purpose\n" +
-		"3. Then trace data flows between entities\n" +
+		"⚠️ IMPORTANT DISTINCTION:\n" +
+		"- THIS TOOL (trace_code_flow): Static data model documentation\n" +
+		"- OTHER TOOL (trace_component_execution): Execution flow walkthroughs\n\n" +
+		"If user asks about execution, flow, or 'what happens' - use trace_component_execution.\n\n" +
+		"▶ RECOMMENDED WORKFLOW FOR DATA MODEL DOCUMENTATION:\n" +
+		"1. First, identify all data entities by reading relevant code files\n" +
+		"2. For each entity, document its schema and structure\n" +
+		"3. Map the static relationships between entities\n" +
 		"4. Finally, call this tool with complete entities and flows arrays\n\n" +
-		"This ensures you have a complete picture before generating the diagram.",
+		"This creates technical reference documentation, not execution traces.",
 }
 
 const NATIVE_GPT_5: ClineToolSpec = {
@@ -187,8 +211,14 @@ const NATIVE_GPT_5: ClineToolSpec = {
 	instruction:
 		NEXT_GEN.instruction +
 		"\n\n" +
+		"⛔ CRITICAL - READ BEFORE USING THIS TOOL:\n" +
+		"This tool is ONLY for creating static data model documentation diagrams.\n" +
+		"If the user's question contains ANY of these words:\n" +
+		"  'walk', 'through', 'happens', 'when', 'flow', 'trace', 'execute', 'process', 'step'\n" +
+		"Then use trace_component_execution instead, NOT this tool.\n\n" +
 		"▶ TYPE VALIDATION CHECKLIST:\n" +
 		"Before calling this tool, verify:\n" +
+		"☐ User is asking for data model documentation (not execution flow)\n" +
 		"☐ All entity types are lowercase with underscores\n" +
 		"☐ All flow fromEntity/toEntity values exactly match entity labels\n" +
 		"☐ All flows include sampleData field\n" +

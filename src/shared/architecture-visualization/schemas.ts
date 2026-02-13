@@ -61,6 +61,42 @@ export const RepoInventorySchema = z.object({
 // ClusterGraph Schemas
 // ============================================================================
 
+// C4 Model Enums
+export const C4ComponentTypeSchema = z.enum([
+	"controller",
+	"service",
+	"repository",
+	"component",
+	"gateway",
+	"database",
+	"external_system",
+	"message_queue",
+	"cache",
+	"middleware",
+	"utility",
+	"config",
+])
+
+export const C4RelationshipTypeSchema = z.enum([
+	"uses",
+	"calls",
+	"renders",
+	"reads_from",
+	"writes_to",
+	"publishes_to",
+	"subscribes_to",
+])
+
+export const C4ProtocolSchema = z.enum(["HTTP", "gRPC", "SQL", "Redis", "REST", "GraphQL", "WebSocket", "AMQP", "Internal"])
+
+export const TechnologyStackSchema = z.object({
+	language: z.string().optional(),
+	framework: z.string().optional(),
+	libraries: z.array(z.string()).optional(),
+	databases: z.array(z.string()).optional(),
+	messaging: z.array(z.string()).optional(),
+})
+
 export const ClusterSchema = z.object({
 	id: z
 		.string()
@@ -75,6 +111,11 @@ export const ClusterSchema = z.object({
 		.regex(/^#[0-9a-fA-F]{6}$/)
 		.optional(), // Hex color
 	layer: z.enum(["presentation", "business", "data", "infrastructure"]).optional(),
+	// C4 Model Fields (Version 2)
+	version: z.number().optional().default(2),
+	componentType: C4ComponentTypeSchema.optional(),
+	technology: TechnologyStackSchema.optional(),
+	responsibilities: z.array(z.string()).optional(),
 })
 
 export const ClusterEdgeSchema = z.object({
@@ -90,6 +131,10 @@ export const ClusterEdgeSchema = z.object({
 			count: z.number().positive(),
 		}),
 	),
+	// C4 Model Fields (Version 2)
+	relationshipType: C4RelationshipTypeSchema.optional(),
+	protocol: C4ProtocolSchema.optional(),
+	description: z.string().optional(),
 })
 
 export const FilteringDefaultsSchema = z.object({
@@ -102,6 +147,8 @@ export const ClusterGraphMetadataSchema = z.object({
 	timestamp: z.number().positive(),
 	clusterCount: z.number().positive(), // Just counts clusters, no enforcement
 	sourceInventoryHash: z.string().min(1),
+	schemaVersion: z.number().default(2).optional(),
+	c4Level: z.literal("C3").optional(),
 })
 
 export const ClusterGraphSchema = z.object({

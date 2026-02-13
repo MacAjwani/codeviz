@@ -52,8 +52,9 @@ export const config = createVariant(ModelFamily.DEVSTRAL)
 		ClineDefaultTool.PLAN_MODE,
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
-		ClineDefaultTool.TRACE_CODE_FLOW,
+		// ClineDefaultTool.TRACE_CODE_FLOW, // DISABLED - use TRACE_COMPONENT_EXECUTION
 		ClineDefaultTool.GENERATE_ARCH_DIAGRAM,
+		ClineDefaultTool.TRACE_COMPONENT_EXECUTION,
 		ClineDefaultTool.USE_SKILL,
 	)
 	.placeholders({

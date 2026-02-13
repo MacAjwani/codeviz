@@ -61,6 +61,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	expandTaskHeader: boolean
 	showVisualization: boolean
 	currentDiagramId?: string
+	openArchitectureDiagramId?: string
+	openArchitectureTraceId?: string
 
 	// Setters
 	setDictationSettings: (value: DictationSettings) => void
@@ -107,6 +109,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	navigateToAccount: () => void
 	navigateToChat: () => void
 	navigateToVisualization: (diagramId: string) => void
+	openArchitectureDiagram: (diagramId: string) => void
+	openArchitectureTrace: (traceId: string) => void
 
 	// Hide functions
 	hideSettings: () => void
@@ -137,6 +141,8 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showChatModelSelector, setShowChatModelSelector] = useState(false)
 	const [showVisualization, setShowVisualization] = useState(false)
 	const [currentDiagramId, setCurrentDiagramId] = useState<string | undefined>(undefined)
+	const [openArchitectureDiagramId, setOpenArchitectureDiagramId] = useState<string | undefined>(undefined)
+	const [openArchitectureTraceId, setOpenArchitectureTraceId] = useState<string | undefined>(undefined)
 
 	// Helper for MCP view
 	const closeMcpView = useCallback(() => {
@@ -156,6 +162,18 @@ export const ExtensionStateContextProvider: React.FC<{
 	const hideVisualization = useCallback(() => {
 		setShowVisualization(false)
 		setCurrentDiagramId(undefined)
+	}, [])
+
+	const openArchitectureDiagram = useCallback((diagramId: string) => {
+		setOpenArchitectureDiagramId(diagramId)
+		// Reset after a short delay to allow the effect to trigger
+		setTimeout(() => setOpenArchitectureDiagramId(undefined), 100)
+	}, [])
+
+	const openArchitectureTrace = useCallback((traceId: string) => {
+		setOpenArchitectureTraceId(traceId)
+		// Reset after a short delay to allow the effect to trigger
+		setTimeout(() => setOpenArchitectureTraceId(undefined), 100)
 	}, [])
 
 	// Navigation functions
@@ -760,6 +778,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		showChatModelSelector,
 		showVisualization,
 		currentDiagramId,
+		openArchitectureDiagramId,
+		openArchitectureTraceId,
 		globalClineRulesToggles: state.globalClineRulesToggles || {},
 		localClineRulesToggles: state.localClineRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
@@ -779,6 +799,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		navigateToAccount,
 		navigateToChat,
 		navigateToVisualization,
+		openArchitectureDiagram,
+		openArchitectureTrace,
 
 		// Hide functions
 		hideSettings,

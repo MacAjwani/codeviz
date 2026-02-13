@@ -69,3 +69,32 @@
 		margin: calc(var(--design-unit) * 1px) 0;
 	}
 }
+
+/* ReactFlow overrides - remove default node styling */
+@layer base {
+	.react-flow__node {
+		@apply shadow-none;
+		outline: none !important;
+		box-shadow: none !important;
+		border: none !important;
+	}
+
+	.react-flow__node.selected {
+		@apply shadow-none;
+		outline: none !important;
+		box-shadow: none !important;
+		border: none !important;
+	}
+
+	.react-flow__node:focus,
+	.react-flow__node:focus-visible {
+		outline: none !important;
+		box-shadow: none !important;
+		border: none !important;
+	}
+
+	/* Ensure our custom cluster-node styling takes precedence */
+	.react-flow__node .cluster-node {
+		border: inherit !important;
+	}
+}

@@ -18,7 +18,8 @@ import { plan_mode_respond_variants } from "./plan_mode_respond"
 import { read_file_variants } from "./read_file"
 import { replace_in_file_variants } from "./replace_in_file"
 import { search_files_variants } from "./search_files"
-import { trace_code_flow_variants } from "./trace_code_flow"
+// import { trace_code_flow_variants } from "./trace_code_flow" // DISABLED - use trace_component_execution instead
+import { trace_component_execution_variants } from "./trace_component_execution"
 import { use_mcp_tool_variants } from "./use_mcp_tool"
 import { use_skill_variants } from "./use_skill"
 import { web_fetch_variants } from "./web_fetch"
@@ -50,7 +51,8 @@ export function registerClineToolSets(): void {
 		...read_file_variants,
 		...replace_in_file_variants,
 		...search_files_variants,
-		...trace_code_flow_variants,
+		// ...trace_code_flow_variants, // DISABLED - use trace_component_execution instead
+		...trace_component_execution_variants,
 		...use_mcp_tool_variants,
 		...use_skill_variants,
 		...web_fetch_variants,

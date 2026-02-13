@@ -28,6 +28,8 @@ const AppContent = () => {
 		showAnnouncement,
 		showVisualization,
 		currentDiagramId,
+		openArchitectureDiagramId,
+		openArchitectureTraceId,
 		onboardingModels,
 		setShowAnnouncement,
 		setShouldShowAnnouncement,
@@ -101,6 +103,8 @@ const AppContent = () => {
 			<SplitView
 				hideAnnouncement={hideAnnouncement}
 				isHidden={showSettings || showHistory || showMcp || showAccount || showVisualization}
+				openDiagramId={openArchitectureDiagramId}
+				openTraceId={openArchitectureTraceId}
 				showAnnouncement={showAnnouncement}
 				showHistoryView={navigateToHistory}
 			/>

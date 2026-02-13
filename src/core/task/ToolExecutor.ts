@@ -40,7 +40,8 @@ import { ReadFileToolHandler } from "./tools/handlers/ReadFileToolHandler"
 import { ReportBugHandler } from "./tools/handlers/ReportBugHandler"
 import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
 import { SummarizeTaskHandler } from "./tools/handlers/SummarizeTaskHandler"
-import { TraceCodeFlowToolHandler } from "./tools/handlers/TraceCodeFlowToolHandler"
+// import { TraceCodeFlowToolHandler } from "./tools/handlers/TraceCodeFlowToolHandler" // DISABLED
+import { TraceComponentExecutionToolHandler } from "./tools/handlers/TraceComponentExecutionToolHandler"
 import { UseMcpToolHandler } from "./tools/handlers/UseMcpToolHandler"
 import { UseSkillToolHandler } from "./tools/handlers/UseSkillToolHandler"
 import { WebFetchToolHandler } from "./tools/handlers/WebFetchToolHandler"
@@ -238,8 +239,9 @@ export class ToolExecutor {
 		this.coordinator.register(new ReportBugHandler())
 		this.coordinator.register(new ApplyPatchHandler(validator))
 		this.coordinator.register(new GenerateExplanationToolHandler())
-		this.coordinator.register(new TraceCodeFlowToolHandler())
+		// this.coordinator.register(new TraceCodeFlowToolHandler()) // DISABLED - use trace_component_execution
 		this.coordinator.register(new GenerateArchitectureDiagramToolHandler())
+		this.coordinator.register(new TraceComponentExecutionToolHandler())
 	}
 
 	/**

@@ -1,9 +1,11 @@
 import type { ToolUse } from "@core/assistant-message"
+import type { ApiHandler } from "@/core/api"
 import { formatResponse } from "@/core/prompts/responses"
 import { ArchitectureAnalysisService } from "@/services/architecture-analysis/ArchitectureAnalysisService"
 import { ArchitectureClusteringService } from "@/services/architecture-analysis/ArchitectureClusteringService"
 import { ArchitectureDiagramStorageService } from "@/services/architecture-analysis/ArchitectureDiagramStorageService"
 import { telemetryService } from "@/services/telemetry"
+import type { ClusterGraph } from "@/shared/architecture-visualization/types"
 import { ClineSayTool } from "@/shared/ExtensionMessage"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
@@ -12,6 +14,55 @@ import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
+
+/**
+ * Generate a descriptive name for an architecture diagram using LLM.
+ */
+async function generateDiagramName(clusterGraph: ClusterGraph, api: ApiHandler): Promise<string> {
+	const componentSummary = clusterGraph.clusters
+		.map((c) => `- ${c.label}: ${c.description}`)
+		.slice(0, 8) // Limit to avoid token overflow
+		.join("\n")
+
+	const prompt = `Based on this architecture diagram, generate a concise, descriptive name (3-6 words max).
+
+Components:
+${componentSummary}
+
+The name should capture the main purpose or domain of this architecture.
+Reply with ONLY the name, no explanation.
+
+Examples:
+- "User Authentication System"
+- "E-Commerce Order Processing"
+- "Content Management Platform"
+- "Real-Time Analytics Pipeline"`
+
+	try {
+		const systemPrompt = "You are an expert software architect. Generate concise, descriptive names for systems."
+		const messages = [{ role: "user" as const, content: prompt }]
+
+		const stream = api.createMessage(systemPrompt, messages, [])
+
+		let responseText = ""
+		for await (const chunk of stream) {
+			if (chunk.type === "text") {
+				responseText += chunk.text
+			}
+		}
+
+		// Clean up the response - remove quotes, newlines, etc.
+		let name = responseText.trim()
+		name = name.replace(/^["']|["']$/g, "") // Remove surrounding quotes
+		name = name.split("\n")[0] // Take first line only
+		return name.slice(0, 60) // Max 60 chars
+	} catch (error) {
+		console.warn("[GenerateArchitectureDiagram] Failed to generate name:", error)
+	}
+
+	// Fallback to generic name
+	return "Architecture Diagram"
+}
 
 /**
  * Tool handler for generating architecture diagrams.
@@ -180,9 +231,14 @@ export class GenerateArchitectureDiagramToolHandler implements IFullyManagedTool
 			const clusteringService = new ArchitectureClusteringService()
 			const clusterGraph = await clusteringService.clusterArchitecture(inventory, config.api, clusteringHint)
 
+			// Generate diagram name
+			console.log(`[GenerateArchitectureDiagram] Generating descriptive name...`)
+			const diagramName = await generateDiagramName(clusterGraph, config.api)
+			clusterGraph.name = diagramName
+
 			// Save cluster graph
 			const diagramId = await storageService.saveClusterGraph(clusterGraph)
-			console.log(`[GenerateArchitectureDiagram] Saved cluster graph: ${diagramId}`)
+			console.log(`[GenerateArchitectureDiagram] Saved cluster graph: ${diagramId} (${diagramName})`)
 
 			// Generate data flow explanation
 			await config.callbacks.say(
@@ -192,11 +248,12 @@ export class GenerateArchitectureDiagramToolHandler implements IFullyManagedTool
 
 			const dataFlowExplanation = await clusteringService.generateDataFlowExplanation(clusterGraph, inventory, config.api)
 
-			// Show explanation to user
+			// Show explanation to user with button to open diagram
 			await config.callbacks.say(
 				"text",
 				`## 🔄 Data Flow Explanation\n\n${dataFlowExplanation}\n\n` +
-					`📊 **Interactive diagram available** - Click the refresh button (🔄) in the diagram panel on the left to visualize these components.`,
+					`📊 **Interactive diagram generated** - Click the button below to view it:\n\n` +
+					`[OPEN_DIAGRAM:${diagramId}]`,
 			)
 
 			// Return summary with cluster details and data flow

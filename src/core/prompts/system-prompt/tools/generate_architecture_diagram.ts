@@ -10,12 +10,23 @@ const GENERIC: ClineToolSpec = {
 	id,
 	name: "generate_architecture_diagram",
 	description:
-		"Analyze workspace and generate an interactive architecture diagram with clustered components. Creates a high-level view of the codebase architecture by grouping files into logical components (5-12 clusters) based on responsibility and dependencies. Use this to understand system structure, identify architectural layers, and visualize component relationships.",
+		"Analyze workspace and generate a C4 Component diagram (Level C3) with interactive visualization. Creates a high-level view of the codebase architecture by grouping files into logical components (5-12 clusters) based on responsibility and dependencies. Each component includes type classification (controller, service, repository, etc.), technology stack, and responsibilities. Use this to understand system structure, identify architectural layers, and visualize component relationships.",
 	instruction:
+		"This tool generates a C4 Component diagram (Level 3) showing the architecture of a codebase.\n\n" +
+		"C4 MODEL LEVELS:\n" +
+		"- C1: System Context - How the system fits in the wider world\n" +
+		"- C2: Container - High-level technology choices (apps, databases, services)\n" +
+		"- C3: Component - Logical components within a container (THIS TOOL)\n" +
+		"- C4: Code - Class/function level details\n\n" +
 		"This tool performs two phases:\n" +
 		"1. ANALYSIS: Scans workspace files, extracts imports/exports, builds dependency graph\n" +
-		"2. CLUSTERING: Groups files into 5-12 semantic clusters representing architectural components\n\n" +
-		"The resulting diagram shows component-level architecture with dependency relationships.\n\n" +
+		"2. CLUSTERING: Groups files into 5-12 semantic clusters representing C4 components\n\n" +
+		"The resulting diagram shows:\n" +
+		"- Component types (controller, service, repository, component, gateway, database, etc.)\n" +
+		"- Technology stack (language, framework, libraries)\n" +
+		"- Key responsibilities (2-5 per component)\n" +
+		"- Relationships with types (calls, uses, reads_from, writes_to, etc.)\n" +
+		"- Communication protocols (HTTP, SQL, Redis, Internal, etc.)\n\n" +
 		"WHEN TO USE:\n" +
 		"- User asks to see/understand the architecture\n" +
 		"- Need high-level codebase overview\n" +
@@ -54,7 +65,7 @@ const NEXT_GEN: ClineToolSpec = {
 	...GENERIC,
 	variant: ModelFamily.NEXT_GEN,
 	description:
-		"Analyze workspace and generate an interactive architecture diagram with clustered components. Creates a high-level view of the codebase architecture by grouping files into logical components (5-12 clusters) based on responsibility and dependencies. Use this to understand system structure, identify architectural layers, and visualize component relationships.",
+		"Analyze workspace and generate a C4 Component diagram (Level C3) with interactive visualization. Creates a high-level view of the codebase architecture by grouping files into logical components (5-12 clusters) based on responsibility and dependencies. Each component includes type classification (controller, service, repository, etc.), technology stack, and responsibilities.",
 	instruction:
 		GENERIC.instruction +
 		"\n\n" +
@@ -63,13 +74,26 @@ const NEXT_GEN: ClineToolSpec = {
 		"2. Tool will automatically scan files, analyze dependencies, and cluster components\n" +
 		"3. Review the generated cluster descriptions in the result\n" +
 		"4. Use the diagram to answer architecture questions or plan changes\n\n" +
+		"▶ C4 COMPONENT TYPES (automatically detected):\n" +
+		"- controller: HTTP request handlers, API routes\n" +
+		"- service: Business logic, orchestration\n" +
+		"- repository: Data access layer, database abstraction\n" +
+		"- component: UI components (React, Vue, Angular)\n" +
+		"- gateway: External API clients, third-party integrations\n" +
+		"- database: Database schemas, ORM models\n" +
+		"- message_queue: Event queues, message brokers\n" +
+		"- cache: Cache layer (Redis, Memcached)\n" +
+		"- middleware: Request/response middleware\n" +
+		"- utility: Helper functions, shared utilities\n" +
+		"- config: Configuration management\n\n" +
 		"▶ CLUSTERING STRATEGY:\n" +
 		"Files are grouped by:\n" +
-		"- Shared responsibility (auth, API, UI, data access, utilities)\n" +
+		"- C4 component type (controllers together, services together, etc.)\n" +
+		"- Shared responsibility (auth controllers, user services, etc.)\n" +
 		"- File path patterns (src/auth/* likely belong together)\n" +
 		"- Dependency relationships (files with many cross-imports)\n" +
-		"- Architectural layers (presentation, business logic, data storage)\n\n" +
-		"Result: 5-12 clusters representing major architectural components",
+		"- Technology stack (detected from imports)\n\n" +
+		"Result: 5-12 C4 components representing major architectural building blocks",
 }
 
 const NATIVE_GPT_5: ClineToolSpec = {

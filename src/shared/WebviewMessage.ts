@@ -1,7 +1,9 @@
 export interface WebviewMessage {
-	type: "grpc_request" | "grpc_request_cancel"
+	type: "grpc_request" | "grpc_request_cancel" | "openFile"
 	grpc_request?: GrpcRequest
 	grpc_request_cancel?: GrpcCancel
+	filePath?: string // For openFile messages
+	lineNumber?: number // Optional line number for openFile messages
 }
 
 export type GrpcRequest = {

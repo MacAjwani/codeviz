@@ -49,6 +49,7 @@ import { cn } from "@/lib/utils"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
+import { ArchitectureButtons } from "./ArchitectureButtons"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
 import { getIconByToolName } from "./chat-view"
@@ -69,6 +70,43 @@ import UserMessage from "./UserMessage"
 type ApiReqState = "pre" | "thinking" | "error" | "final"
 
 const HEADER_CLASSNAMES = "flex items-center gap-2.5 mb-3"
+
+/**
+ * Parse text for architecture button markers: [OPEN_DIAGRAM:id] and [OPEN_TRACE:id]
+ * Returns the cleaned text and extracted IDs
+ */
+function parseArchitectureMarkers(text: string | undefined): {
+	cleanedText: string
+	diagramId?: string
+	traceId?: string
+} {
+	if (!text) {
+		return { cleanedText: "" }
+	}
+
+	let cleanedText = text
+	let diagramId: string | undefined
+	let traceId: string | undefined
+
+	// Match [OPEN_DIAGRAM:id]
+	const diagramMatch = text.match(/\[OPEN_DIAGRAM:([^\]]+)\]/)
+	if (diagramMatch) {
+		diagramId = diagramMatch[1]
+		cleanedText = cleanedText.replace(diagramMatch[0], "")
+	}
+
+	// Match [OPEN_TRACE:id]
+	const traceMatch = text.match(/\[OPEN_TRACE:([^\]]+)\]/)
+	if (traceMatch) {
+		traceId = traceMatch[1]
+		cleanedText = cleanedText.replace(traceMatch[0], "")
+	}
+
+	// Clean up extra whitespace and newlines
+	cleanedText = cleanedText.trim()
+
+	return { cleanedText, diagramId, traceId }
+}
 
 interface ChatRowProps {
 	message: ClineMessage
@@ -1027,16 +1065,24 @@ export const ChatRowContent = memo(
 							</div>
 						)
 					case "text": {
+						const { cleanedText, diagramId, traceId } = parseArchitectureMarkers(message.text)
 						return (
 							<WithCopyButton
 								onMouseUp={handleMouseUp}
 								position="bottom-right"
 								ref={contentRef}
 								textToCopy={message.text}>
-								<div className="flex items-center">
-									<div className={cn("flex-1 min-w-0 pl-1")}>
-										<MarkdownRow markdown={message.text} showCursor={false} />
+								<div className="flex flex-col">
+									<div className="flex items-center">
+										<div className={cn("flex-1 min-w-0 pl-1")}>
+											<MarkdownRow markdown={cleanedText} showCursor={false} />
+										</div>
 									</div>
+									{(diagramId || traceId) && (
+										<div className="pl-1 mt-2">
+											<ArchitectureButtons diagramId={diagramId} traceId={traceId} />
+										</div>
+									)}
 								</div>
 								{quoteButtonState.visible && (
 									<QuoteButton
